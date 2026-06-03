@@ -1,0 +1,9 @@
+[project]
+name = "binance-testnet-agent"
+version = "0.2.0"
+description = "A conservative Binance Spot live trading agent with dashboard, backtests, and dry-run defaults."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+binance-agent = "binance_testnet_agent.cli:main"

@@ -1,0 +1,8 @@
+[Unit]
+Description=Backup Binance Spot Live Agent data and logs
+
+[Service]
+Type=oneshot
+ExecStart=/opt/binance-testnet-agent/deploy/backup_agent.sh
+User=root
+Group=root

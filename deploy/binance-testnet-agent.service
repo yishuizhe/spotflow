@@ -1,0 +1,18 @@
+[Unit]
+Description=Binance Spot Live Trading Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/binance-testnet-agent
+EnvironmentFile=/opt/binance-testnet-agent/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m binance_testnet_agent.cli run
+Restart=always
+RestartSec=10
+User=ubuntu
+Group=ubuntu
+
+[Install]
+WantedBy=multi-user.target

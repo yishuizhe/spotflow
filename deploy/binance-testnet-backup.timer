@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Binance Spot Live Agent backup every 30 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=binance-testnet-backup.service
+
+[Install]
+WantedBy=timers.target

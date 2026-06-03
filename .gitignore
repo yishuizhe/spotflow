@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+logs/
+data/
+run_state/
+.secrets/
+backups/
+*.log
+*.tar.gz
+*.zip
+.DS_Store

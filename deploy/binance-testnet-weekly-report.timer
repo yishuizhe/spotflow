@@ -1,0 +1,10 @@
+[Unit]
+Description=Send Binance Spot Live Agent weekly report every Sunday at 18:00 Asia/Shanghai
+
+[Timer]
+OnCalendar=Sun *-*-* 10:00:00 UTC
+Persistent=true
+Unit=binance-testnet-weekly-report.service
+
+[Install]
+WantedBy=timers.target

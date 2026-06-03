@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Binance Spot Live Agent monthly report at 18:00 Asia/Shanghai near month end
+
+[Timer]
+OnCalendar=*-*-28..31 10:00:00 UTC
+Persistent=true
+Unit=binance-testnet-monthly-report.service
+
+[Install]
+WantedBy=timers.target
