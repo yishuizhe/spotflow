@@ -57,7 +57,7 @@ HTML = """<!doctype html>
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #eef4f7; color: #17212b; }
+    body { margin: 0; background: #eef4f7; color: #17212b; overflow-x: hidden; }
     body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: linear-gradient(150deg, rgba(14,165,233,.11), rgba(255,255,255,.58) 42%, rgba(16,185,129,.10)); }
     main { position: relative; max-width: 1320px; margin: 0 auto; padding: 28px; }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
@@ -125,7 +125,30 @@ HTML = """<!doctype html>
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
     .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: #eef8f4; color: #065f46; font-weight: 750; }
-    @media (max-width: 980px) { .top-board { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr; } .inline-controls { grid-template-columns: 1fr 1fr; } header { display: block; } .hero-price { font-size: 38px; } }
+    @media (max-width: 980px) {
+      main { width: 100%; overflow-x: hidden; }
+      .top-board { grid-template-columns: 1fr; }
+      .split { grid-template-columns: 1fr; }
+      .inline-controls { grid-template-columns: 1fr 1fr; }
+      header { display: block; }
+      .hero-price { font-size: 38px; }
+      .table-scroll { overflow-x: visible; }
+      table:not(.account-table) { display: block; margin-top: 10px; }
+      table:not(.account-table) thead { display: none; }
+      table:not(.account-table) tbody { display: grid; gap: 10px; }
+      table:not(.account-table) tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, .06); }
+      table:not(.account-table) td { display: flex; flex-direction: column; gap: 3px; min-width: 0; border: 0; padding: 0; white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.35; }
+      table:not(.account-table) td::before { content: attr(data-label); color: #738397; font-size: 11px; font-weight: 800; }
+      table:not(.account-table) td[colspan] { grid-column: 1 / -1; display: block; }
+      table:not(.account-table) td[colspan]::before { display: none; }
+      table:not(.account-table) td[data-label="操作"] { grid-column: 1 / -1; }
+      table:not(.account-table) td[data-label="操作"] > div { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      table:not(.account-table) td[data-label="操作"] button { width: 100%; padding: 0 8px; }
+      table:not(.account-table) td[data-label="预计卖价"],
+      table:not(.account-table) td[data-label="手动价格"],
+      table:not(.account-table) td[data-label="净利润"],
+      table:not(.account-table) td[data-label="浮盈亏"] { font-weight: 750; }
+    }
     @media (max-width: 560px) {
       main { padding: 14px; }
       header { margin-bottom: 12px; }
@@ -491,7 +514,15 @@ HTML = """<!doctype html>
         tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${t.side}</span></td><td>${t.level}</td><td>${fmt(quote || 0, 6)}</td>`;
         tbody.appendChild(tr);
       });
+      applyMobileLabels(tbody, ['时间', '方向', '档位', '金额']);
       updatePager('trade', tradePage, pages);
+    }
+    function applyMobileLabels(tbody, labels) {
+      tbody.querySelectorAll('tr').forEach(row => {
+        Array.from(row.children).forEach((cell, index) => {
+          if (!cell.hasAttribute('colspan')) cell.dataset.label = labels[index] || '';
+        });
+      });
     }
     function positiveNumber(value) {
       const n = Number(value || 0);
@@ -533,6 +564,7 @@ HTML = """<!doctype html>
         tr.innerHTML = `<td>${lot.level || 'legacy'}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 8)}</td><td>${fmt(target, 8)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
+      applyMobileLabels(tbody, ['档位', '状态', '成本价', '预计卖价', '手动价格', '数量', '手续费', '浮盈亏', '操作']);
       tbody.querySelectorAll('[data-manual-sell]').forEach(button => {
         button.addEventListener('click', () => manualSell(button.dataset.manualSell));
       });
@@ -562,6 +594,7 @@ HTML = """<!doctype html>
         tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${order.side}</span></td><td>${fmt(order.limit_price || 0, 8)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
+      applyMobileLabels(tbody, ['时间', '方向', '限价', '数量', '状态', '操作']);
       tbody.querySelectorAll('[data-cancel-order]').forEach(button => {
         button.addEventListener('click', () => cancelPendingOrder(button.dataset.cancelOrder));
       });
@@ -587,6 +620,7 @@ HTML = """<!doctype html>
         tr.innerHTML = `<td>${lot.closed_at ? new Date(lot.closed_at).toLocaleString() : '--'}</td><td>${lot.level || 'legacy'}</td><td><span class="badge">${status}</span></td><td>${fmt(lot.buy_price || 0, 8)}</td><td>${fmt(lot.sell_price || 0, 8)}</td><td>${manualPrice}</td><td>${fmt(lot.quantity || 0, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td>`;
         tbody.appendChild(tr);
       });
+      applyMobileLabels(tbody, ['关闭时间', '档位', '状态', '成本价', '卖出价', '手动价格', '数量', '手续费', '净利润']);
       updatePager('closed', closedPage, pages);
     }
     function updatePager(kind, page, pages) {
@@ -645,6 +679,7 @@ HTML = """<!doctype html>
         tr.innerHTML = `<td>${row.scenario || '--'}</td><td>${fmt(Number(row.take_profit_pct || 0) * 100, 3)}%</td><td>${fmt(row.final_value || 0, 4)}</td><td class="${ret >= 0 ? 'profit' : 'loss'}">${fmt(ret, 2)}%</td><td>${fmt(row.realized_net_pnl || 0, 4)}</td><td>${fmt(row.unrealized_pnl || 0, 4)}</td><td>${fmt(row.fees_paid || 0, 4)}</td><td>${row.buys || 0}/${row.sells || 0}</td><td>${row.open_lots || 0}</td><td>${fmt(row.max_drawdown_quote || 0, 4)}</td>`;
         tbody.appendChild(tr);
       });
+      applyMobileLabels(tbody, ['场景', '盈利比例', '总资产', '收益率', '已实现', '未实现', '手续费', '买/卖', '未平', '最大回撤']);
       const advice = document.getElementById('backtestAdvice');
       advice.textContent = data.recommendation && data.recommendation.text ? data.recommendation.text : '';
       advice.style.display = advice.textContent ? 'block' : 'none';
