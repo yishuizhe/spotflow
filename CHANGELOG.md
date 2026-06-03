@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3 - 2026-06-03
+
+- Improved mobile dashboard tables by rendering recent trades, open lots, pending orders, closed lots, and backtest results as compact cards on narrow screens.
+- Added mobile field labels for prices, fees, PnL, quantities, statuses, and actions so table rows remain understandable after collapsing into cards.
+- Made mobile action buttons wrap inside each card instead of pushing the table beyond the viewport.
+
 ## v0.2.2 - 2026-06-03
 
 - Fixed recent order amount display for newly placed limit orders by falling back to planned quote amount when cumulative quote is zero.
