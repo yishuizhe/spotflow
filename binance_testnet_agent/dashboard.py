@@ -486,12 +486,23 @@ HTML = """<!doctype html>
       tradePage = Math.min(tradePage, pages - 1);
       rows.slice(tradePage * tradePageSize, (tradePage + 1) * tradePageSize).forEach(t => {
         const sideClass = t.side === 'BUY' ? 'profit' : 'warn';
-        const quote = t.order && (t.order.cummulativeQuoteQty || t.order.origQuoteOrderQty || t.target_quote_size);
+        const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${t.side}</span></td><td>${t.level}</td><td>${fmt(quote || 0, 6)}</td>`;
         tbody.appendChild(tr);
       });
       updatePager('trade', tradePage, pages);
+    }
+    function positiveNumber(value) {
+      const n = Number(value || 0);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    function tradeQuoteAmount(trade) {
+      const order = trade.order || {};
+      return positiveNumber(order.cummulativeQuoteQty)
+        || positiveNumber(order.origQuoteOrderQty)
+        || (positiveNumber(order.price) * positiveNumber(order.origQty))
+        || positiveNumber(trade.target_quote_size);
     }
     function renderOpenLots(lots, currentPrice) {
       const tbody = document.getElementById('openLots');
@@ -1453,8 +1464,10 @@ class Dashboard:
             item["status"] = order.get("status", status)
             item["updated_at"] = _utc_now()
             executed_qty = float(order.get("executedQty", 0) or 0)
-            quote_qty = float(order.get("cummulativeQuoteQty", 0) or 0)
+            quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
             if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and executed_qty > 0 and quote_qty > 0:
+                order = dict(order)
+                order["cummulativeQuoteQty"] = str(quote_qty)
                 if item.get("side") == "BUY":
                     lot = self.ledger.add_buy(
                         self.config.symbol,
@@ -1527,7 +1540,7 @@ class Dashboard:
             "ts": datetime.now(timezone.utc).isoformat(),
             "symbol": self.config.symbol,
             "side": side,
-            "level": "manual-entry",
+            "level": str(lot.get("level") or "manual-entry") if lot else "manual-entry",
             "reason": "manual dashboard trade; auto sell disabled",
             "target_quote_size": quote_size,
             "order": order,
@@ -1693,6 +1706,18 @@ def _balance_parts(balances: dict[str, dict[str, Any]], asset: str) -> tuple[flo
     free = float(item.get("free", 0) or 0)
     locked = float(item.get("locked", 0) or 0)
     return free, locked, free + locked
+
+
+def _order_quote_qty(order: dict[str, Any], fallback_price: float = 0.0) -> float:
+    quote_qty = float(order.get("cummulativeQuoteQty", 0) or 0)
+    if quote_qty > 0:
+        return quote_qty
+    orig_quote_qty = float(order.get("origQuoteOrderQty", 0) or 0)
+    if orig_quote_qty > 0 and str(order.get("status", "")).upper() == "FILLED":
+        return orig_quote_qty
+    executed_qty = float(order.get("executedQty", 0) or 0)
+    price = float(order.get("price", 0) or 0) or fallback_price
+    return executed_qty * price if executed_qty > 0 and price > 0 else 0.0
 
 
 def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:

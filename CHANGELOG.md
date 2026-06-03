@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2 - 2026-06-03
+
+- Fixed recent order amount display for newly placed limit orders by falling back to planned quote amount when cumulative quote is zero.
+- Fixed filled limit buy sync when Binance order lookup returns an empty or zero cumulative quote amount by reconstructing quote from executed quantity and limit price.
+- Preserved manual order levels such as `manual-limit-buy` and `manual-limit-sell` in recent order records instead of showing every manual action as `manual-entry`.
+
 ## v0.2.1 - 2026-06-03
 
 - Added built-in SVG favicon for the dashboard.
