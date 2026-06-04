@@ -143,6 +143,18 @@ HTML = """<!doctype html>
     body[data-theme="stage"] {
       --bg: #fff8e8; --panel: rgba(255,252,244,.95); --panel-strong: #fffdf8; --text: #312516; --muted: #7a6850; --line: #ead7b5; --line-soft: #f2e4ca; --accent: #f59e0b; --accent-2: #10b981; --button: #7c2d12; --good: #15803d; --bad: #dc2626; --warn: #b45309; --shadow: 0 20px 46px rgba(124, 45, 18, .12); --page-art: radial-gradient(circle at 15% 15%, rgba(245,158,11,.20), transparent 24%), radial-gradient(circle at 85% 12%, rgba(16,185,129,.14), transparent 22%), linear-gradient(145deg, #fff8e8, #fff1f2 60%, #ecfeff);
     }
+    body[data-theme="forest"] {
+      --bg: #f3fbf5; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #17251f; --muted: #62776d; --line: #cfe2d6; --line-soft: #e3efe7; --accent: #16a34a; --accent-2: #0ea5e9; --button: #14532d; --good: #15803d; --bad: #dc2626; --warn: #a16207; --shadow: 0 20px 48px rgba(20,83,45,.10); --page-art: radial-gradient(circle at 10% 18%, rgba(22,163,74,.16), transparent 24%), radial-gradient(circle at 88% 12%, rgba(14,165,233,.12), transparent 22%), linear-gradient(145deg, #f3fbf5, #eefdf8 64%, #f8fafc);
+    }
+    body[data-theme="ocean"] {
+      --bg: #edf7ff; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #162231; --muted: #607184; --line: #c6dbef; --line-soft: #dcebf7; --accent: #0284c7; --accent-2: #14b8a6; --button: #075985; --good: #0f9f80; --bad: #e11d48; --warn: #b45309; --shadow: 0 20px 48px rgba(2,132,199,.12); --page-art: radial-gradient(circle at 16% 12%, rgba(2,132,199,.18), transparent 25%), radial-gradient(circle at 86% 22%, rgba(20,184,166,.16), transparent 24%), linear-gradient(145deg, #edf7ff, #f0fdfa 68%, #ffffff);
+    }
+    body[data-theme="sunset"] {
+      --bg: #fff7ed; --panel: rgba(255,255,255,.95); --panel-strong: #ffffff; --text: #2f2218; --muted: #806b5b; --line: #efd4bd; --line-soft: #f6e5d5; --accent: #ea580c; --accent-2: #db2777; --button: #9a3412; --good: #15803d; --bad: #dc2626; --warn: #b45309; --shadow: 0 20px 48px rgba(154,52,18,.12); --page-art: radial-gradient(circle at 12% 14%, rgba(234,88,12,.18), transparent 24%), radial-gradient(circle at 88% 15%, rgba(219,39,119,.14), transparent 22%), linear-gradient(145deg, #fff7ed, #fff1f2 66%, #f0f9ff);
+    }
+    body[data-theme="mono"] {
+      --bg: #f6f7f9; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #171b22; --muted: #657080; --line: #d5dbe3; --line-soft: #e7ebf0; --accent: #475569; --accent-2: #0891b2; --button: #111827; --good: #047857; --bad: #be123c; --warn: #a16207; --shadow: 0 18px 42px rgba(17,24,39,.09); --page-art: linear-gradient(145deg, #f6f7f9, #eef4f7 72%, #ffffff);
+    }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; transition: background .28s ease, color .28s ease; }
     body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: var(--page-art); }
@@ -229,7 +241,11 @@ HTML = """<!doctype html>
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
     .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent-2) 12%, transparent); color: var(--good); font-weight: 750; }
-    .floating-theme { position: fixed; right: 18px; bottom: 18px; z-index: 18; width: min(300px, calc(100vw - 36px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); }
+    .floating-dock { position: fixed; right: 18px; bottom: 18px; z-index: 18; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+    .dock-fab { width: 54px; height: 54px; border-radius: 999px; border: 1px solid var(--line); background: var(--button); color: #fff; box-shadow: var(--shadow); cursor: pointer; font-weight: 900; pointer-events: auto; }
+    body[data-theme="night"] .dock-fab { color: #111827; }
+    .theme-drawer { width: min(320px, calc(100vw - 36px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateY(10px) scale(.98); transform-origin: bottom right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+    .floating-dock.open .theme-drawer { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
     .theme-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 850; }
     .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
@@ -237,13 +253,11 @@ HTML = """<!doctype html>
     .theme-toggle { width: 100%; margin-top: 8px; }
     .mascot { position: fixed; left: 18px; bottom: 18px; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
     .mascot.hidden { display: none; }
-    .mascot-figure { width: 88px; height: 118px; position: relative; filter: drop-shadow(0 16px 24px rgba(15,23,42,.18)); }
-    .mascot-head { position: absolute; left: 18px; top: 5px; width: 56px; height: 56px; border-radius: 24px 24px 22px 22px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
-    .mascot-body { position: absolute; left: 15px; bottom: 0; width: 62px; height: 70px; border-radius: 28px 28px 12px 12px; background: linear-gradient(145deg, var(--panel-strong), color-mix(in srgb, var(--accent) 30%, var(--panel-strong))); border: 1px solid var(--line); }
-    .eye { position: absolute; top: 22px; width: 9px; height: 9px; border-radius: 50%; background: #111827; transition: transform .08s linear; }
-    .eye.left { left: 32px; } .eye.right { left: 50px; }
-    .mascot-mouth { position: absolute; left: 39px; top: 38px; width: 14px; height: 7px; border-bottom: 2px solid rgba(15,23,42,.72); border-radius: 50%; }
-    .mascot-bubble { max-width: 260px; margin-bottom: 42px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; }
+    .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
+    .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .eye { position: absolute; top: 43px; width: 8px; height: 8px; border-radius: 50%; background: #0f172a; box-shadow: 0 0 0 2px rgba(255,255,255,.55); transition: transform .08s linear; }
+    .eye.left { left: 43px; } .eye.right { left: 61px; }
+    .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
     @media (max-width: 980px) {
       main { width: 100%; overflow-x: hidden; }
@@ -294,6 +308,14 @@ HTML = """<!doctype html>
       .modal-panel { max-height: calc(100vh - 24px); padding: 14px; }
       .modal-actions { flex-direction: column-reverse; }
       .modal-actions button { width: 100%; }
+      .floating-dock { right: 12px; bottom: 12px; }
+      .dock-fab { width: 48px; height: 48px; font-size: 12px; }
+      .theme-drawer { width: min(300px, calc(100vw - 24px)); }
+      .mascot { left: 8px; bottom: 8px; gap: 6px; }
+      .mascot-figure { width: 70px; height: 105px; }
+      .eye { top: 27px; width: 5px; height: 5px; box-shadow: 0 0 0 1px rgba(255,255,255,.55); }
+      .eye.left { left: 27px; } .eye.right { left: 38px; }
+      .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
     }
   </style>
 </head>
@@ -305,7 +327,6 @@ HTML = """<!doctype html>
         <div class="muted">实盘实时交易看板</div>
       </div>
       <div class="header-actions">
-        <button class="secondary-button" id="settingsOpen">设置</button>
         <div class="muted" id="updated">加载中...</div>
       </div>
     </header>
@@ -507,26 +528,31 @@ HTML = """<!doctype html>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
   </div>
-  <aside class="floating-theme" id="themePanel">
-    <div class="theme-head">
-      <span>主题设置</span>
-      <button class="secondary-button" id="openSettingsFloat" data-help="打开系统设置，可以修改密码、邮件、资金池、风控和策略参数。">设置</button>
+  <aside class="floating-dock" id="themeDock">
+    <div class="theme-drawer" id="themeDrawer">
+      <div class="theme-head">
+        <span>主题与设置</span>
+        <button class="secondary-button" id="openSettingsFloat" data-help="打开系统设置，可以修改密码、邮件、资金池、风控和策略参数。">系统设置</button>
+      </div>
+      <div class="theme-grid">
+        <button class="theme-chip" data-theme-choice="day">白天</button>
+        <button class="theme-chip" data-theme-choice="night">交易所深色</button>
+        <button class="theme-chip" data-theme-choice="rift">星界竞技</button>
+        <button class="theme-chip" data-theme-choice="anime">动画校园</button>
+        <button class="theme-chip" data-theme-choice="stage">樱音舞台</button>
+        <button class="theme-chip" data-theme-choice="forest">森林</button>
+        <button class="theme-chip" data-theme-choice="ocean">海洋</button>
+        <button class="theme-chip" data-theme-choice="sunset">落日</button>
+        <button class="theme-chip" data-theme-choice="mono">极简</button>
+      </div>
+      <button class="secondary-button theme-toggle" id="mascotToggle">隐藏看板助手</button>
     </div>
-    <div class="theme-grid">
-      <button class="theme-chip" data-theme-choice="day">白天</button>
-      <button class="theme-chip" data-theme-choice="night">交易所深色</button>
-      <button class="theme-chip" data-theme-choice="rift">星界竞技</button>
-      <button class="theme-chip" data-theme-choice="anime">动画校园</button>
-      <button class="theme-chip" data-theme-choice="stage">樱音舞台</button>
-    </div>
-    <button class="secondary-button theme-toggle" id="mascotToggle">隐藏看板助手</button>
+    <button class="dock-fab" id="themeFab" data-help="打开主题、助手和系统设置。">设置</button>
   </aside>
   <aside class="mascot" id="mascot">
     <div class="mascot-figure">
-      <div class="mascot-body"></div>
-      <div class="mascot-head">
-        <span class="eye left"></span><span class="eye right"></span><span class="mascot-mouth"></span>
-      </div>
+      <img src="/static/mascot-ai.png" alt="看板助手">
+      <span class="eye left"></span><span class="eye right"></span>
     </div>
     <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
   </aside>
@@ -547,7 +573,7 @@ HTML = """<!doctype html>
     let settingsLoaded = false;
     let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
     let loginValidated = false;
-    const tradePageSize = 13;
+    const tradePageSize = 9;
     const closedPageSize = 8;
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
@@ -616,7 +642,7 @@ HTML = """<!doctype html>
       const upColor = styles.getPropertyValue('--good').trim() || '#059669';
       const downColor = styles.getPropertyValue('--bad').trim() || '#e11d48';
       const accent = styles.getPropertyValue('--accent').trim() || '#0ea5e9';
-      const pad = { left: 88, right: 72, top: 24, bottom: 64 };
+      const pad = { left: 96, right: 28, top: 24, bottom: 64 };
       const total = chartPoints.length;
       const startIndex = Math.max(0, Math.floor(chartZoom.start * Math.max(total - 1, 1)));
       const endIndex = Math.min(total, Math.max(startIndex + 2, Math.ceil(chartZoom.end * total)));
@@ -637,8 +663,8 @@ HTML = """<!doctype html>
         const yy = pad.top + i * plotH / 4;
         const val = max - span * i / 4;
         ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(rect.width - pad.right, yy); ctx.stroke();
-        ctx.textAlign = 'left';
-        ctx.fillText(fmt(val, 2), rect.width - pad.right + 10, yy + 4);
+        ctx.textAlign = 'right';
+        ctx.fillText(fmt(val, 2), pad.left - 10, yy + 4);
       }
       for (let i = 0; i < 5; i++) {
         const xx = pad.left + i * plotW / 4;
@@ -670,16 +696,22 @@ HTML = """<!doctype html>
         const i = Math.max(0, Math.min(visible.length - 1, visible.findIndex(p => p.open_time >= ts)));
         const p = visible[i < 0 ? visible.length - 1 : i];
         const side = String(t.side || '');
-        const yy = side.includes('SELL') ? y(Number(p.high ?? p.close)) - 12 : y(Number(p.low ?? p.close)) + 12;
+        const isSell = side.includes('SELL');
+        const yy = isSell ? y(Number(p.high ?? p.close)) - 15 : y(Number(p.low ?? p.close)) + 15;
         const xx = x(i < 0 ? visible.length - 1 : i);
-        ctx.fillStyle = side.includes('SELL') ? downColor : upColor;
+        ctx.fillStyle = isSell ? downColor : upColor;
         ctx.beginPath();
-        if (side.includes('SELL')) {
-          ctx.moveTo(xx, yy - 7); ctx.lineTo(xx - 6, yy + 5); ctx.lineTo(xx + 6, yy + 5);
-        } else {
-          ctx.moveTo(xx, yy + 7); ctx.lineTo(xx - 6, yy - 5); ctx.lineTo(xx + 6, yy - 5);
-        }
-        ctx.closePath(); ctx.fill();
+        ctx.arc(xx, yy, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--panel-strong').trim() || '#fff';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isSell ? 'S' : 'B', xx, yy + .5);
+        ctx.textBaseline = 'alphabetic';
       });
       ctx.strokeStyle = lineColor; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, rect.height - pad.bottom); ctx.lineTo(rect.width - pad.right, rect.height - pad.bottom); ctx.stroke();
@@ -1245,12 +1277,12 @@ HTML = """<!doctype html>
       catch (err) { window.alert(err.message || err); return; }
       refresh();
     }
-    document.getElementById('settingsOpen').addEventListener('click', async () => {
+    async function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('open');
       if (!settingsLoaded) {
         try { await loadSettings(); } catch (err) { document.getElementById('settingsStatus').textContent = String(err.message || err); }
       }
-    });
+    }
     document.getElementById('settingsClose').addEventListener('click', () => {
       document.getElementById('settingsModal').classList.remove('open');
     });
@@ -1277,7 +1309,18 @@ HTML = """<!doctype html>
       await loadSettings();
       refresh();
     });
-    document.getElementById('openSettingsFloat').addEventListener('click', () => document.getElementById('settingsOpen').click());
+    document.getElementById('themeFab').addEventListener('click', () => {
+      document.getElementById('themeDock').classList.toggle('open');
+    });
+    document.addEventListener('click', event => {
+      const dock = document.getElementById('themeDock');
+      if (!dock.contains(event.target)) dock.classList.remove('open');
+    });
+    document.getElementById('openSettingsFloat').addEventListener('click', event => {
+      event.stopPropagation();
+      document.getElementById('themeDock').classList.remove('open');
+      openSettingsModal();
+    });
     document.querySelectorAll('[data-theme-choice]').forEach(button => {
       button.addEventListener('click', () => setTheme(button.dataset.themeChoice));
     });
@@ -1291,15 +1334,28 @@ HTML = """<!doctype html>
       document.querySelectorAll('.eye').forEach(eye => { eye.style.transform = `translate(${dx}px, ${dy}px)`; });
     });
     document.addEventListener('mouseover', event => {
-      const target = event.target.closest('[data-help], button, th');
+      const target = event.target.closest('[data-help], button, th, .label, .panel-title, .summary-card span, .status-item .k');
       if (!target) return;
       const help = target.dataset.help || {
         execute: '控制自动策略是否允许真实下单。手动交易仍需要二次确认密码。',
         manualBuy: '人工买入会写入账本，可以选择是否交给脚本自动卖出。',
         externalLimitSell: '用于卖出脚本账本外的 BTC 持仓，不会关闭任何未平批次。',
         calibrate: '把当前资产设为新的盈亏基准，适合充值后校准。',
-        runBacktest: '用当前资金和策略参数跑模拟或历史 K 线回测。'
-      }[target.id];
+        runBacktest: '用当前资金和策略参数跑模拟或历史 K 线回测。',
+        themeFab: '打开主题、助手和系统设置。'
+      }[target.id] || {
+        '交易对': '当前脚本正在监控和交易的现货交易对。',
+        '实时价格': '从币安接口获取的最新成交参考价。',
+        '当前信号': '策略当前判断：买入、卖出、持有或暂停。',
+        '当前资产估值': '账户 USDT 加 BTC 按当前价格折算后的总价值。',
+        '较启动基准盈亏': '相对启动或手动校准基准的收益变化。',
+        '未平批次': '脚本仍持有、尚未卖出的批次。',
+        '已平批次': '已经卖出并结算盈亏的批次。',
+        '限价挂单': '当前仍在交易所等待成交的限价委托。',
+        '最近实盘订单': '脚本近期记录到的真实订单流水。',
+        '账户与策略': '账户余额、风控、策略和当前执行状态摘要。',
+        '行情走势': 'K 线图展示近期价格、缩放区间和买卖位置。'
+      }[String(target.textContent || '').trim()];
       if (help) mascotSay(help);
     });
     setTheme(localStorage.getItem('dashboardTheme') || 'day');
@@ -2363,6 +2419,13 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/favicon.svg":
                 self._send(200, FAVICON_SVG, "image/svg+xml")
+                return
+            if path == "/static/mascot-ai.png":
+                asset_path = Path(__file__).with_name("static") / "mascot-ai.png"
+                if asset_path.exists():
+                    self._send(200, asset_path.read_bytes(), "image/png")
+                else:
+                    self._send(404, b"not found", "text/plain; charset=utf-8")
                 return
             if not self._authorized():
                 self._send(403, json.dumps({"error": "not logged in"}).encode(), "application/json")

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.0 - 2026-06-05
+
+- Promoted the project to `v1.0.0` as the first full learning/stable release for the live dashboard and strategy tool.
+- Removed the top settings button and kept a compact bottom-right settings dock to avoid duplicated entry points.
+- Reworked the theme selector into a small floating button with a drawer, and added forest, ocean, sunset, and minimal themes.
+- Replaced the CSS mascot with an original generated assistant image and improved desktop/mobile sizing.
+- Expanded hover explanations so buttons, headings, and key dashboard terms can trigger assistant help text.
+- Moved the chart Y axis back to the left and changed recent trade markers into exchange-style `B` / `S` circles.
+- Reduced recent live order rows per page so the order panel better matches the account and strategy panel height.
+
 ## v0.3.1 - 2026-06-05
 
 - Changed open/closed lot display to show both the strategy level and a short ledger lot id, making repeated strategy levels easier to understand.
