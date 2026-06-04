@@ -91,6 +91,52 @@ class DashboardOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_settings_exposes_and_updates_defensive_scalp_pool_fields(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            old_env = {
+                "DEFENSIVE_SCALP_ALLOCATION_PCT": os.environ.get("DEFENSIVE_SCALP_ALLOCATION_PCT"),
+                "DEFENSIVE_SCALP_ORDER_PCT": os.environ.get("DEFENSIVE_SCALP_ORDER_PCT"),
+                "DEFENSIVE_SCALP_MAX_ORDER_QUOTE": os.environ.get("DEFENSIVE_SCALP_MAX_ORDER_QUOTE"),
+            }
+            try:
+                os.chdir(tmp)
+                for key in old_env:
+                    os.environ.pop(key, None)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                fields = {item["key"]: item for item in dashboard.settings()["config_fields"]}
+                self.assertEqual(fields["defensive_scalp_allocation_pct"]["category"], "防守震荡")
+
+                result = dashboard.update_settings(
+                    {
+                        "config_updates": {
+                            "defensive_scalp_allocation_pct": "0.2",
+                            "defensive_scalp_order_pct": "0.04",
+                            "defensive_scalp_max_order_quote": "20",
+                        }
+                    }
+                )
+
+                self.assertIn("DEFENSIVE_SCALP_ALLOCATION_PCT", result["updated"])
+                self.assertEqual(os.environ["DEFENSIVE_SCALP_ALLOCATION_PCT"], "0.2")
+                self.assertEqual(os.environ["DEFENSIVE_SCALP_ORDER_PCT"], "0.04")
+                self.assertEqual(os.environ["DEFENSIVE_SCALP_MAX_ORDER_QUOTE"], "20")
+                self.assertEqual(dashboard.config.defensive_scalp_allocation_pct, 0.2)
+                self.assertIn("DEFENSIVE_SCALP_ORDER_PCT=0.04", Path(".env").read_text())
+            finally:
+                os.chdir(old_cwd)
+                for key, value in old_env.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
 
 if __name__ == "__main__":
     unittest.main()

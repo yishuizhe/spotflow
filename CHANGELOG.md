@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0 - 2026-06-04
+
+- Grouped the dashboard settings modal into security, profit/manual trading, notifications, trading basics, pools/sizing, risk, defensive mode, trend guard, swing, and defensive scalp sections.
+- Exposed the common strategy and pool parameters in the dashboard settings page, including defensive scalp allocation, per-order percentage, min/max order quote, range, and take-profit controls.
+- Clarified that defensive scalp sizing is account-based by default: pool and single-order sizes scale with each user's live account value, while manual overrides remain available.
+- Applied dashboard defensive scalp settings to built-in backtests so simulations match the live configuration.
+- Changed `.env` writes to atomic replacement to reduce the chance of a partially written config file.
+
 ## v0.2.9 - 2026-06-04
 
 - Fixed Binance `quoteOrderQty has too much precision` errors for account-sized defensive scalp buys by rounding market buy quote quantities down to 2 decimals.

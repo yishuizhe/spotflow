@@ -49,6 +49,57 @@ FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 </svg>
 """
 
+CONFIG_SETTING_FIELDS: tuple[dict[str, str], ...] = (
+    {"key": "execute_trades", "env": "EXECUTE_TRADES", "label": "默认自动交易", "category": "交易基础", "kind": "bool"},
+    {"key": "auto_position_sizing", "env": "AUTO_POSITION_SIZING", "label": "按账户资金自动分档", "category": "资金池与仓位", "kind": "bool"},
+    {"key": "order_quote_size", "env": "ORDER_QUOTE_SIZE", "label": "手动固定单笔金额", "category": "资金池与仓位", "kind": "float"},
+    {"key": "max_position_quote", "env": "MAX_POSITION_QUOTE", "label": "手动固定最大持仓", "category": "资金池与仓位", "kind": "float"},
+    {"key": "grid_step_pct", "env": "GRID_STEP_PCT", "label": "网格买入间距", "category": "交易基础", "kind": "float"},
+    {"key": "trading_fee_rate", "env": "TRADING_FEE_RATE", "label": "手续费率", "category": "交易基础", "kind": "float"},
+    {"key": "max_floating_loss_quote", "env": "MAX_FLOATING_LOSS_QUOTE", "label": "最大浮亏买入保护", "category": "风控", "kind": "float"},
+    {"key": "rapid_drop_pause_pct", "env": "RAPID_DROP_PAUSE_PCT", "label": "急跌暂停阈值", "category": "风控", "kind": "float"},
+    {"key": "large_drop_pause_pct", "env": "LARGE_DROP_PAUSE_PCT", "label": "大跌反弹保护阈值", "category": "风控", "kind": "float"},
+    {"key": "rebound_buy_pct", "env": "REBOUND_BUY_PCT", "label": "急跌后反弹确认", "category": "风控", "kind": "float"},
+    {"key": "price_anomaly_pct", "env": "PRICE_ANOMALY_PCT", "label": "价格源异常阈值", "category": "风控", "kind": "float"},
+    {"key": "defensive_mode", "env": "DEFENSIVE_MODE", "label": "防守模式", "category": "防守模式", "kind": "bool"},
+    {"key": "defensive_position_usage_trigger", "env": "DEFENSIVE_POSITION_USAGE_TRIGGER", "label": "持仓占用触发防守", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_floating_loss_quote", "env": "DEFENSIVE_FLOATING_LOSS_QUOTE", "label": "浮亏触发防守", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_recent_drawdown_pct", "env": "DEFENSIVE_RECENT_DRAWDOWN_PCT", "label": "近期回撤触发防守", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_normal_add_on_step_pct", "env": "DEFENSIVE_NORMAL_ADD_ON_STEP_PCT", "label": "正常补仓间距", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_add_on_step_pct", "env": "DEFENSIVE_ADD_ON_STEP_PCT", "label": "防守补仓间距", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_aged_lot_days_1", "env": "DEFENSIVE_AGED_LOT_DAYS_1", "label": "老仓降目标天数 1", "category": "防守模式", "kind": "int"},
+    {"key": "defensive_aged_lot_profit_pct_1", "env": "DEFENSIVE_AGED_LOT_PROFIT_PCT_1", "label": "老仓目标利润 1", "category": "防守模式", "kind": "float"},
+    {"key": "defensive_aged_lot_days_2", "env": "DEFENSIVE_AGED_LOT_DAYS_2", "label": "老仓降目标天数 2", "category": "防守模式", "kind": "int"},
+    {"key": "defensive_aged_lot_profit_pct_2", "env": "DEFENSIVE_AGED_LOT_PROFIT_PCT_2", "label": "老仓目标利润 2", "category": "防守模式", "kind": "float"},
+    {"key": "trend_guard", "env": "TREND_GUARD", "label": "趋势保护", "category": "趋势保护", "kind": "bool"},
+    {"key": "trend_normal_pool_pct", "env": "TREND_NORMAL_POOL_PCT", "label": "普通网格资金池比例", "category": "趋势保护", "kind": "float"},
+    {"key": "trend_dip_pool_pct", "env": "TREND_DIP_POOL_PCT", "label": "下跌抄底资金池比例", "category": "趋势保护", "kind": "float"},
+    {"key": "trend_dip_order_quote", "env": "TREND_DIP_ORDER_QUOTE", "label": "下跌抄底单笔上限", "category": "趋势保护", "kind": "float"},
+    {"key": "trend_rebound_pct", "env": "TREND_REBOUND_PCT", "label": "抄底反弹确认", "category": "趋势保护", "kind": "float"},
+    {"key": "trend_kline_interval", "env": "TREND_KLINE_INTERVAL", "label": "趋势 K 线周期", "category": "趋势保护", "kind": "str"},
+    {"key": "trend_kline_limit", "env": "TREND_KLINE_LIMIT", "label": "趋势 K 线数量", "category": "趋势保护", "kind": "int"},
+    {"key": "swing_strategy", "env": "SWING_STRATEGY", "label": "波段策略", "category": "波段策略", "kind": "bool"},
+    {"key": "swing_allocation_pct", "env": "SWING_ALLOCATION_PCT", "label": "波段资金池比例", "category": "波段策略", "kind": "float"},
+    {"key": "swing_min_order_quote", "env": "SWING_MIN_ORDER_QUOTE", "label": "波段单笔最小金额", "category": "波段策略", "kind": "float"},
+    {"key": "swing_max_order_quote", "env": "SWING_MAX_ORDER_QUOTE", "label": "波段单笔最大金额", "category": "波段策略", "kind": "float"},
+    {"key": "swing_add_step_pct", "env": "SWING_ADD_STEP_PCT", "label": "波段补仓间距", "category": "波段策略", "kind": "float"},
+    {"key": "swing_min_band_pct", "env": "SWING_MIN_BAND_PCT", "label": "波段最小带宽", "category": "波段策略", "kind": "float"},
+    {"key": "swing_max_band_pct", "env": "SWING_MAX_BAND_PCT", "label": "波段最大带宽", "category": "波段策略", "kind": "float"},
+    {"key": "swing_manual_center_price", "env": "SWING_MANUAL_CENTER_PRICE", "label": "波段手动中枢", "category": "波段策略", "kind": "float"},
+    {"key": "swing_kline_interval", "env": "SWING_KLINE_INTERVAL", "label": "波段 K 线周期", "category": "波段策略", "kind": "str"},
+    {"key": "swing_kline_limit", "env": "SWING_KLINE_LIMIT", "label": "波段 K 线数量", "category": "波段策略", "kind": "int"},
+    {"key": "defensive_scalp", "env": "DEFENSIVE_SCALP", "label": "防守震荡小仓", "category": "防守震荡", "kind": "bool"},
+    {"key": "defensive_scalp_allocation_pct", "env": "DEFENSIVE_SCALP_ALLOCATION_PCT", "label": "震荡资金池比例", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_order_pct", "env": "DEFENSIVE_SCALP_ORDER_PCT", "label": "震荡单笔比例", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_min_order_quote", "env": "DEFENSIVE_SCALP_MIN_ORDER_QUOTE", "label": "震荡单笔最小金额", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_max_order_quote", "env": "DEFENSIVE_SCALP_MAX_ORDER_QUOTE", "label": "震荡单笔最大金额", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_buy_drop_pct", "env": "DEFENSIVE_SCALP_BUY_DROP_PCT", "label": "震荡低吸偏移", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_take_profit_pct", "env": "DEFENSIVE_SCALP_TAKE_PROFIT_PCT", "label": "震荡止盈空间", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_add_step_pct", "env": "DEFENSIVE_SCALP_ADD_STEP_PCT", "label": "震荡加仓间距", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_min_range_pct", "env": "DEFENSIVE_SCALP_MIN_RANGE_PCT", "label": "震荡最小波动", "category": "防守震荡", "kind": "float"},
+    {"key": "defensive_scalp_max_range_pct", "env": "DEFENSIVE_SCALP_MAX_RANGE_PCT", "label": "震荡最大波动", "category": "防守震荡", "kind": "float"},
+)
+
 
 HTML = """<!doctype html>
 <html lang="zh-CN">
@@ -125,6 +176,11 @@ HTML = """<!doctype html>
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .field label { display: block; color: #687789; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
     .field input, .field select { width: 100%; height: 38px; border: 1px solid #d9e2ec; border-radius: 7px; padding: 0 10px; font: inherit; background: #fff; }
+    .settings-section { margin-top: 14px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fbfdff; }
+    .settings-section:first-of-type { margin-top: 0; }
+    .settings-title { margin: 0 0 10px; color: #263445; font-size: 15px; font-weight: 850; }
+    .settings-help { margin: -4px 0 12px; color: #738397; font-size: 12px; line-height: 1.5; }
+    .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     .secondary-button { border: 1px solid #d9e2ec; border-radius: 8px; height: 34px; padding: 0 13px; background: #fff; color: #334155; font-weight: 800; cursor: pointer; }
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
@@ -166,7 +222,7 @@ HTML = """<!doctype html>
       .value { font-size: 21px; }
       .capital-value { font-size: 25px; }
       .pnl-card .value { font-size: 22px; }
-      .form-grid, .inline-controls { grid-template-columns: 1fr; }
+      .form-grid, .settings-grid, .inline-controls { grid-template-columns: 1fr; }
       .chart-wrap { height: 330px; }
       .chart-head { display: block; padding: 12px 12px 0; }
       .range-tabs { width: 100%; margin-top: 10px; overflow-x: auto; }
@@ -352,19 +408,34 @@ HTML = """<!doctype html>
         <h2>面板设置</h2>
         <button class="secondary-button" id="settingsClose">关闭</button>
       </div>
-      <div class="form-grid">
-        <div class="field"><label>页面登录密码</label><input id="setDashboardPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
-        <div class="field"><label>交易开关密码</label><input id="setTradingPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
-        <div class="field"><label>默认盈利比例 %</label><input id="setTakeProfitPct" inputmode="decimal" placeholder="例如 1.0"></div>
-        <div class="field"><label>应用到未平批次</label><select id="setApplyTakeProfit"><option value="false">只影响后续</option><option value="true">重算未平批次</option></select></div>
-        <div class="field"><label>人工买入默认自动卖出</label><select id="setManualBuyAutoSell"><option value="false">关闭</option><option value="true">开启</option></select></div>
-        <div class="field"><label>SMTP 服务器</label><input id="setSmtpHost" placeholder="smtp.example.com"></div>
-        <div class="field"><label>SMTP 端口</label><input id="setSmtpPort" inputmode="numeric" placeholder="465"></div>
-        <div class="field"><label>SMTP 账号</label><input id="setSmtpUsername" autocomplete="username"></div>
-        <div class="field"><label>SMTP 密码</label><input id="setSmtpPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
-        <div class="field"><label>发件人姓名</label><input id="setSmtpFromName"></div>
-        <div class="field"><label>报告收件人</label><input id="setReportRecipient"></div>
+      <div class="settings-section">
+        <div class="settings-title">面板安全</div>
+        <div class="settings-grid">
+          <div class="field"><label>页面登录密码</label><input id="setDashboardPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
+          <div class="field"><label>交易开关密码</label><input id="setTradingPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
+        </div>
       </div>
+      <div class="settings-section">
+        <div class="settings-title">收益与人工交易</div>
+        <div class="settings-help">默认盈利比例只影响后续新批次；选择重算时，会更新未平普通/人工批次的预计卖价。</div>
+        <div class="settings-grid">
+          <div class="field"><label>默认盈利比例 %</label><input id="setTakeProfitPct" inputmode="decimal" placeholder="例如 1.0"></div>
+          <div class="field"><label>应用到未平批次</label><select id="setApplyTakeProfit"><option value="false">只影响后续</option><option value="true">重算未平批次</option></select></div>
+          <div class="field"><label>人工买入默认自动卖出</label><select id="setManualBuyAutoSell"><option value="false">关闭</option><option value="true">开启</option></select></div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-title">通知设置</div>
+        <div class="settings-grid">
+          <div class="field"><label>SMTP 服务器</label><input id="setSmtpHost" placeholder="smtp.example.com"></div>
+          <div class="field"><label>SMTP 端口</label><input id="setSmtpPort" inputmode="numeric" placeholder="465"></div>
+          <div class="field"><label>SMTP 账号</label><input id="setSmtpUsername" autocomplete="username"></div>
+          <div class="field"><label>SMTP 密码</label><input id="setSmtpPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
+          <div class="field"><label>发件人姓名</label><input id="setSmtpFromName"></div>
+          <div class="field"><label>报告收件人</label><input id="setReportRecipient"></div>
+        </div>
+      </div>
+      <div id="configSettings"></div>
       <div class="muted" id="settingsStatus" style="margin-top:12px">密码字段不会回显；留空表示不修改。</div>
       <div class="modal-actions">
         <button class="secondary-button" id="settingsReload">重新读取</button>
@@ -672,8 +743,72 @@ HTML = """<!doctype html>
       document.getElementById('setSmtpPassword').placeholder = data.smtp_password_set ? '已设置，留空不改' : '未设置';
       document.getElementById('setSmtpFromName').value = data.smtp_from_name || '';
       document.getElementById('setReportRecipient').value = data.report_recipient || '';
+      renderConfigSettings(data.config_fields || []);
       document.getElementById('settingsStatus').textContent = '密码字段不会回显；留空表示不修改。';
       settingsLoaded = true;
+    }
+    function renderConfigSettings(fields) {
+      const root = document.getElementById('configSettings');
+      root.innerHTML = '';
+      const groups = {};
+      fields.forEach(field => {
+        const category = field.category || '策略设置';
+        if (!groups[category]) groups[category] = [];
+        groups[category].push(field);
+      });
+      Object.entries(groups).forEach(([category, items]) => {
+        const section = document.createElement('div');
+        section.className = 'settings-section';
+        const title = document.createElement('div');
+        title.className = 'settings-title';
+        title.textContent = category;
+        section.appendChild(title);
+        if (category === '资金池与仓位') {
+          const help = document.createElement('div');
+          help.className = 'settings-help';
+          help.textContent = '开启自动分档时，单笔金额和最大持仓会按账户总估值自动计算；手动固定值主要用于关闭自动分档后的覆盖。';
+          section.appendChild(help);
+        }
+        if (category === '防守震荡') {
+          const help = document.createElement('div');
+          help.className = 'settings-help';
+          help.textContent = '资金池比例和单笔比例都按账户总估值计算，再受单笔最小/最大金额限制；资金变多会自动放大。';
+          section.appendChild(help);
+        }
+        const grid = document.createElement('div');
+        grid.className = 'settings-grid';
+        items.forEach(field => {
+          const wrap = document.createElement('div');
+          wrap.className = 'field';
+          const label = document.createElement('label');
+          label.textContent = `${field.label} (${field.env})`;
+          wrap.appendChild(label);
+          if (field.kind === 'bool') {
+            const select = document.createElement('select');
+            select.dataset.configKey = field.key;
+            select.innerHTML = '<option value="true">开启</option><option value="false">关闭</option>';
+            select.value = String(Boolean(field.value));
+            wrap.appendChild(select);
+          } else {
+            const input = document.createElement('input');
+            input.dataset.configKey = field.key;
+            input.value = field.value ?? '';
+            input.placeholder = field.env;
+            if (field.kind === 'float' || field.kind === 'int') input.inputMode = 'decimal';
+            wrap.appendChild(input);
+          }
+          grid.appendChild(wrap);
+        });
+        section.appendChild(grid);
+        root.appendChild(section);
+      });
+    }
+    function configSettingsPayload() {
+      const updates = {};
+      document.querySelectorAll('[data-config-key]').forEach(input => {
+        updates[input.dataset.configKey] = input.value;
+      });
+      return updates;
     }
     function settingsPayload(password) {
       return {
@@ -687,7 +822,8 @@ HTML = """<!doctype html>
         smtp_username: document.getElementById('setSmtpUsername').value.trim(),
         smtp_password: document.getElementById('setSmtpPassword').value,
         smtp_from_name: document.getElementById('setSmtpFromName').value.trim(),
-        report_recipient: document.getElementById('setReportRecipient').value.trim()
+        report_recipient: document.getElementById('setReportRecipient').value.trim(),
+        config_updates: configSettingsPayload()
       };
     }
     function renderBacktest(data) {
@@ -979,6 +1115,56 @@ HTML = """<!doctype html>
 </body>
 </html>
 """
+
+
+def _config_setting_fields(config: AgentConfig) -> list[dict[str, Any]]:
+    fields: list[dict[str, Any]] = []
+    for spec in CONFIG_SETTING_FIELDS:
+        value = getattr(config, spec["key"])
+        fields.append(
+            {
+                "key": spec["key"],
+                "env": spec["env"],
+                "label": spec["label"],
+                "category": spec["category"],
+                "kind": spec["kind"],
+                "value": value,
+            }
+        )
+    return fields
+
+
+def _config_updates_from_payload(payload: dict[str, Any]) -> dict[str, str]:
+    raw_updates = payload.get("config_updates", {})
+    if not isinstance(raw_updates, dict):
+        return {}
+    specs = {spec["key"]: spec for spec in CONFIG_SETTING_FIELDS}
+    updates: dict[str, str] = {}
+    for key, raw_value in raw_updates.items():
+        spec = specs.get(str(key))
+        if not spec:
+            continue
+        value = str(raw_value if raw_value is not None else "").strip()
+        if value == "":
+            continue
+        if spec["kind"] == "bool":
+            parsed = _payload_bool(value)
+            updates[spec["env"]] = "true" if parsed else "false"
+            continue
+        if spec["kind"] == "int":
+            parsed_int = int(float(value))
+            if parsed_int < 0:
+                raise ValueError(f"{spec['env']} must be non-negative")
+            updates[spec["env"]] = str(parsed_int)
+            continue
+        if spec["kind"] == "float":
+            parsed_float = float(value)
+            if parsed_float < 0:
+                raise ValueError(f"{spec['env']} must be non-negative")
+            updates[spec["env"]] = f"{parsed_float:.10f}".rstrip("0").rstrip(".")
+            continue
+        updates[spec["env"]] = value
+    return updates
 
 
 class Dashboard:
@@ -1413,6 +1599,16 @@ class Dashboard:
             defensive_aged_lot_profit_pct_1=self.config.defensive_aged_lot_profit_pct_1,
             defensive_aged_lot_days_2=self.config.defensive_aged_lot_days_2,
             defensive_aged_lot_profit_pct_2=self.config.defensive_aged_lot_profit_pct_2,
+            defensive_scalp=self.config.defensive_scalp,
+            defensive_scalp_allocation_pct=self.config.defensive_scalp_allocation_pct,
+            defensive_scalp_order_pct=self.config.defensive_scalp_order_pct,
+            defensive_scalp_min_order_quote=self.config.defensive_scalp_min_order_quote,
+            defensive_scalp_max_order_quote=self.config.defensive_scalp_max_order_quote,
+            defensive_scalp_buy_drop_pct=self.config.defensive_scalp_buy_drop_pct,
+            defensive_scalp_take_profit_pct=self.config.defensive_scalp_take_profit_pct,
+            defensive_scalp_add_step_pct=self.config.defensive_scalp_add_step_pct,
+            defensive_scalp_min_range_pct=self.config.defensive_scalp_min_range_pct,
+            defensive_scalp_max_range_pct=self.config.defensive_scalp_max_range_pct,
         )
 
     def manual_buy(self, quote_size: float, target_profit_pct: float, auto_sell: bool | None = None) -> dict[str, Any]:
@@ -1776,6 +1972,7 @@ class Dashboard:
             "report_recipient": os.getenv("REPORT_RECIPIENT", ""),
             "manual_buy_auto_sell": self.manual_buy_auto_sell_enabled(),
             "take_profit_pct": float(os.getenv("TAKE_PROFIT_PCT", str(self.config.take_profit_pct))),
+            "config_fields": _config_setting_fields(self.config),
         }
 
     def manual_buy_auto_sell_enabled(self) -> bool:
@@ -1805,9 +2002,14 @@ class Dashboard:
                 updates[env_key] = value
             elif value:
                 updates[env_key] = value
+        try:
+            updates.update(_config_updates_from_payload(payload))
+        except ValueError as exc:
+            return {"error": str(exc)}
         if updates:
             _update_dotenv(Path(".env"), updates)
             os.environ.update(updates)
+            self._reload_config()
         return {"updated": sorted(updates)}
 
     def trades(self, limit: int = 200) -> list[dict[str, Any]]:
@@ -1846,7 +2048,10 @@ def _update_dotenv(path: Path, updates: dict[str, str]) -> None:
             lines.append(raw_line)
     for key, value in remaining.items():
         lines.append(f"{key}={_quote_env_value(value)}")
-    path.write_text("\n".join(lines).rstrip() + "\n")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text("\n".join(lines).rstrip() + "\n")
+    temp_path.replace(path)
 
 
 def _quote_env_value(value: str) -> str:
