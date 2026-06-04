@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.8 - 2026-06-04
+
+- Added defensive scalp mode: when the main grid is in defensive mode, a separate small pool can trade range-bound dips and rebounds.
+- Added account-sized defensive scalp order sizing with configurable allocation, order percentage, min/max quote, buy drop, and take-profit thresholds.
+- Added dashboard defensive scalp status with center price, buy/sell edges, pool usage, and reason.
+- Tuned the default defensive scalp thresholds to 0.4% buy drop and 0.5% take profit after a recent BTC 1m kline quick simulation.
+
 ## v0.2.7 - 2026-06-04
 
 - Added an external-position limit sell action for users who hold BTC in the account but do not have a matching open lot in the script ledger.

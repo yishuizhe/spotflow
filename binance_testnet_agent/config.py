@@ -76,6 +76,16 @@ class AgentConfig:
     trend_rebound_pct: float = 0.005
     trend_kline_interval: str = "1h"
     trend_kline_limit: int = 240
+    defensive_scalp: bool = True
+    defensive_scalp_allocation_pct: float = 0.08
+    defensive_scalp_order_pct: float = 0.018
+    defensive_scalp_min_order_quote: float = 6.0
+    defensive_scalp_max_order_quote: float = 10.0
+    defensive_scalp_buy_drop_pct: float = 0.004
+    defensive_scalp_take_profit_pct: float = 0.005
+    defensive_scalp_add_step_pct: float = 0.003
+    defensive_scalp_min_range_pct: float = 0.004
+    defensive_scalp_max_range_pct: float = 0.018
     manual_buy_auto_sell: bool = False
 
     @classmethod
@@ -129,5 +139,15 @@ class AgentConfig:
             trend_rebound_pct=float(os.getenv("TREND_REBOUND_PCT", "0.005")),
             trend_kline_interval=os.getenv("TREND_KLINE_INTERVAL", "1h"),
             trend_kline_limit=int(os.getenv("TREND_KLINE_LIMIT", "240")),
+            defensive_scalp=_bool_env("DEFENSIVE_SCALP", True),
+            defensive_scalp_allocation_pct=float(os.getenv("DEFENSIVE_SCALP_ALLOCATION_PCT", "0.08")),
+            defensive_scalp_order_pct=float(os.getenv("DEFENSIVE_SCALP_ORDER_PCT", "0.018")),
+            defensive_scalp_min_order_quote=float(os.getenv("DEFENSIVE_SCALP_MIN_ORDER_QUOTE", "6")),
+            defensive_scalp_max_order_quote=float(os.getenv("DEFENSIVE_SCALP_MAX_ORDER_QUOTE", "10")),
+            defensive_scalp_buy_drop_pct=float(os.getenv("DEFENSIVE_SCALP_BUY_DROP_PCT", "0.004")),
+            defensive_scalp_take_profit_pct=float(os.getenv("DEFENSIVE_SCALP_TAKE_PROFIT_PCT", "0.005")),
+            defensive_scalp_add_step_pct=float(os.getenv("DEFENSIVE_SCALP_ADD_STEP_PCT", "0.003")),
+            defensive_scalp_min_range_pct=float(os.getenv("DEFENSIVE_SCALP_MIN_RANGE_PCT", "0.004")),
+            defensive_scalp_max_range_pct=float(os.getenv("DEFENSIVE_SCALP_MAX_RANGE_PCT", "0.018")),
             manual_buy_auto_sell=_bool_env("MANUAL_BUY_AUTO_SELL", False),
         )

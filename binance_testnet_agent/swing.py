@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .strategy import MarketSnapshot, Signal, StrategyDecision
+from .defensive_scalp import is_scalp_lot
 
 
 @dataclass(frozen=True)
@@ -150,7 +151,7 @@ def is_swing_lot(lot: dict[str, Any]) -> bool:
 
 def split_lots(lots: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     swing_lots = [lot for lot in lots if is_swing_lot(lot)]
-    grid_lots = [lot for lot in lots if not is_swing_lot(lot)]
+    grid_lots = [lot for lot in lots if not is_swing_lot(lot) and not is_scalp_lot(lot)]
     return grid_lots, swing_lots
 
 
