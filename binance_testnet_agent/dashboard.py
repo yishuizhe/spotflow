@@ -22,6 +22,7 @@ from .portfolio import metrics_asdict, portfolio_metrics, reset_baseline
 from .sizing import position_sizing
 from .strategy import GridStrategy, MarketSnapshot
 from .swing import SwingStrategy, is_swing_lot, split_lots
+from .trend_guard import TrendGuard
 
 
 FAVICON_SVG = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -293,6 +294,7 @@ HTML = """<!doctype html>
             <tr><th>手续费统计</th><td id="fees">--</td></tr>
             <tr><th>风控状态</th><td id="risk">--</td></tr>
             <tr><th>防守模式</th><td id="defensive">--</td></tr>
+            <tr><th>趋势保护</th><td id="trendGuard">--</td></tr>
             <tr><th>波段策略</th><td id="swing">--</td></tr>
             <tr><th>错误</th><td id="error">--</td></tr>
           </tbody>
@@ -736,6 +738,8 @@ HTML = """<!doctype html>
         const defensive = data.defensive_mode || {};
         const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.join(' / ') : '未触发';
         document.getElementById('defensive').textContent = `${defensive.enabled ? '开启' : '关闭'} / ${defensive.active ? '防守中' : '正常'} / 间距 ${fmt((defensive.add_on_step_pct || 0) * 100, 3)}% / ${defensiveReasons}`;
+        const trend = data.trend_guard || {};
+        document.getElementById('trendGuard').textContent = `${trend.enabled ? '开启' : '关闭'} / ${trend.mode || '--'} / ${trend.reason || '--'} / 24h ${fmt(trend.ma24 || 0, 2)} / 7d ${fmt(trend.ma7d || 0, 2)} / 普通池 ${fmt(trend.grid_position_quote || 0, 2)}/${fmt(trend.normal_pool_quote || 0, 2)} / 抄底池 ${fmt(trend.dip_position_quote || 0, 2)}/${fmt(trend.dip_pool_quote || 0, 2)} ${data.quote_asset}`;
         const swing = data.swing_band || {};
         document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'} / 中枢 ${fmt(swing.center_price || 0, 2)} / 买 ${fmt(swing.buy_price || 0, 2)} / 卖 ${fmt(swing.sell_price || 0, 2)} / 资金池 ${fmt(swing.allocation_quote || 0, 4)} / 已占用 ${fmt(swing.position_quote || 0, 4)} / 单笔 ${fmt(swing.min_order_quote || 0, 2)}-${fmt(swing.max_order_quote || 0, 2)} ${data.quote_asset}`;
         document.getElementById('error').textContent = '--';
@@ -1004,7 +1008,9 @@ class Dashboard:
             max_position_quote=sizing.max_position_quote,
             add_on_step_pct=defensive["add_on_step_pct"],
         )
+        trend_guard = self.trend_guard(price, sizing.max_position_quote, raw_grid_lots, raw_swing_lots)
         decision = strategy.decide(snapshot, self.grid_state(), [lot for lot in open_lots if not str(lot.get("level", "")).startswith("swing-")])
+        decision = self._trend_guard().apply_to_grid(decision, trend_guard)
         swing_band = self.swing_band(price, raw_swing_lots, quote_balance + base_balance * price)
         metrics = portfolio_metrics(
             self.baseline_path,
@@ -1023,6 +1029,7 @@ class Dashboard:
             "execute_trades": self.execute_trades_enabled(),
             "risk": self.risk(price, reference_closes),
             "defensive_mode": defensive,
+            "trend_guard": trend_guard.to_dict(),
             "swing_band": swing_band,
             "chart_range": range_key,
             "chart_interval": interval,
@@ -1151,6 +1158,37 @@ class Dashboard:
             max_band_pct=self.config.swing_max_band_pct,
             manual_center_price=self.config.swing_manual_center_price,
         ).band(price, closes, swing_lots, total_value_quote).to_dict()
+
+    def _trend_guard(self) -> TrendGuard:
+        return TrendGuard(
+            enabled=self.config.trend_guard,
+            normal_pool_pct=self.config.trend_normal_pool_pct,
+            dip_pool_pct=self.config.trend_dip_pool_pct,
+            dip_order_quote=self.config.trend_dip_order_quote,
+            rebound_pct=self.config.trend_rebound_pct,
+            interval_minutes=_interval_minutes(self.config.trend_kline_interval),
+        )
+
+    def trend_guard(
+        self,
+        price: float,
+        max_position_quote: float,
+        grid_lots: list[dict[str, Any]],
+        swing_lots: list[dict[str, Any]],
+    ):
+        klines = self.client.klines(
+            self.config.symbol,
+            interval=self.config.trend_kline_interval,
+            limit=self.config.trend_kline_limit,
+        )
+        closes = [float(item[4]) for item in klines]
+        return self._trend_guard().evaluate(
+            price,
+            closes,
+            max_position_quote,
+            _position_quote(grid_lots, price),
+            _position_quote(swing_lots, price),
+        )
 
     def risk(self, price: float, closes: list[float]) -> dict[str, Any]:
         from .risk import evaluate_buy_risk
@@ -1932,6 +1970,21 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
             self.wfile.write(body)
 
     return Handler
+
+
+def _position_quote(lots: list[dict[str, Any]], price: float) -> float:
+    return sum(float(lot.get("remaining_quantity", 0) or 0) * price for lot in lots)
+
+
+def _interval_minutes(interval: str) -> int:
+    raw = interval.strip().lower()
+    if raw.endswith("m"):
+        return max(1, int(raw[:-1] or "1"))
+    if raw.endswith("h"):
+        return max(1, int(raw[:-1] or "1") * 60)
+    if raw.endswith("d"):
+        return max(1, int(raw[:-1] or "1") * 24 * 60)
+    return 60
 
 
 def main() -> None:

@@ -39,6 +39,19 @@ class BacktestConfig:
     defensive_aged_lot_profit_pct_1: float = 0.0035
     defensive_aged_lot_days_2: int = 14
     defensive_aged_lot_profit_pct_2: float = 0.0015
+    trend_filter: bool = False
+    price_interval_minutes: int = 1
+    trend_rebound_pct: float = 0.004
+    trend_probe_order_quote: float = 5.0
+    normal_pool_pct: float = 0.45
+    deep_pool_pct: float = 0.20
+    adaptive_regime: bool = False
+    adaptive_normal_pool_pct: float = 0.65
+    adaptive_recovery_pool_pct: float = 0.45
+    adaptive_strict_pool_pct: float = 0.25
+    adaptive_probe_order_quote: float = 5.0
+    adaptive_strict_order_quote: float = 3.0
+    adaptive_rebound_pct: float = 0.005
     seed: int = 20260529
 
 
@@ -150,6 +163,23 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
                 max_drawdown = max(max_drawdown, peak_value - current_value)
                 continue
             quote_size = decision.order_quote_size
+            trend = _trend_buy_guard(
+                prices[: index + 1],
+                quote_size,
+                sizing.max_position_quote,
+                current_position_quote=max(
+                    sum(float(lot.get("remaining_quantity", 0)) * price for lot in lots),
+                    base_balance * price,
+                ),
+                config=config,
+            )
+            if bool(trend["blocked"]):
+                blocked_buys += 1
+                current_value = quote_balance + sum(float(lot["remaining_quantity"]) * price for lot in lots)
+                peak_value = max(peak_value, current_value)
+                max_drawdown = max(max_drawdown, peak_value - current_value)
+                continue
+            quote_size = float(trend["quote_size"])
             buy_fee = quote_size * config.trading_fee_rate
             if quote_balance >= quote_size + buy_fee:
                 qty = quote_size / price
@@ -316,6 +346,110 @@ def _level_number(level: str) -> int:
         return int(level.split("-", 2)[1])
     except (IndexError, ValueError):
         return 0
+
+
+def _trend_buy_guard(
+    prices: list[float],
+    quote_size: float,
+    max_position_quote: float,
+    current_position_quote: float,
+    config: BacktestConfig,
+) -> dict[str, float | bool]:
+    if not config.trend_filter:
+        return {"blocked": False, "quote_size": quote_size}
+    interval = max(1, int(config.price_interval_minutes))
+    ma24_window = max(2, int(24 * 60 / interval))
+    ma7_window = max(ma24_window + 1, int(7 * 24 * 60 / interval))
+    if config.adaptive_regime:
+        return _adaptive_regime_buy_guard(
+            prices,
+            quote_size,
+            max_position_quote,
+            current_position_quote,
+            ma24_window,
+            ma7_window,
+            config,
+        )
+    if len(prices) < ma7_window + ma24_window:
+        normal_pool_quote = max_position_quote * config.normal_pool_pct
+        if current_position_quote + quote_size > normal_pool_quote:
+            return {"blocked": True, "quote_size": 0.0}
+        return {"blocked": False, "quote_size": quote_size}
+
+    ma24 = sum(prices[-ma24_window:]) / ma24_window
+    ma7 = sum(prices[-ma7_window:]) / ma7_window
+    prev_ma24 = sum(prices[-ma24_window * 2 : -ma24_window]) / ma24_window
+    price = prices[-1]
+    downtrend = price < ma24 and price < ma7 and ma24 < prev_ma24
+    normal_pool_quote = max_position_quote * config.normal_pool_pct
+    deep_pool_quote = max_position_quote * config.deep_pool_pct
+
+    if not downtrend:
+        if current_position_quote + quote_size > normal_pool_quote:
+            return {"blocked": True, "quote_size": 0.0}
+        return {"blocked": False, "quote_size": quote_size}
+
+    if current_position_quote >= normal_pool_quote + deep_pool_quote:
+        return {"blocked": True, "quote_size": 0.0}
+
+    recent = prices[-max(3, int(6 * 60 / interval)) :]
+    low = min(recent)
+    rebounded = (
+        low > 0
+        and price >= low * (1 + config.trend_rebound_pct)
+        and len(recent) >= 3
+        and recent[-1] > recent[-2] > recent[-3]
+    )
+    if not rebounded:
+        return {"blocked": True, "quote_size": 0.0}
+    return {"blocked": False, "quote_size": min(quote_size, config.trend_probe_order_quote)}
+
+
+def _adaptive_regime_buy_guard(
+    prices: list[float],
+    quote_size: float,
+    max_position_quote: float,
+    current_position_quote: float,
+    ma24_window: int,
+    ma7_window: int,
+    config: BacktestConfig,
+) -> dict[str, float | bool]:
+    if len(prices) < ma7_window + ma24_window:
+        pool_quote = max_position_quote * config.adaptive_normal_pool_pct
+        if current_position_quote + quote_size > pool_quote:
+            return {"blocked": True, "quote_size": 0.0}
+        return {"blocked": False, "quote_size": quote_size}
+
+    price = prices[-1]
+    ma24 = sum(prices[-ma24_window:]) / ma24_window
+    ma7 = sum(prices[-ma7_window:]) / ma7_window
+    prev_ma24 = sum(prices[-ma24_window * 2 : -ma24_window]) / ma24_window
+    downtrend = price < ma24 and price < ma7 and ma24 < prev_ma24
+    recovered = price >= ma24 and ma24 >= prev_ma24 * 0.999
+
+    if recovered:
+        pool_quote = max_position_quote * config.adaptive_normal_pool_pct
+        adjusted_quote = quote_size
+    elif downtrend:
+        recent = prices[-max(3, int(6 * 60 / max(1, config.price_interval_minutes))) :]
+        low = min(recent)
+        rebound = (
+            low > 0
+            and price >= low * (1 + config.adaptive_rebound_pct)
+            and len(recent) >= 3
+            and recent[-1] > recent[-2] > recent[-3]
+        )
+        if not rebound:
+            return {"blocked": True, "quote_size": 0.0}
+        pool_quote = max_position_quote * config.adaptive_strict_pool_pct
+        adjusted_quote = min(quote_size, config.adaptive_strict_order_quote)
+    else:
+        pool_quote = max_position_quote * config.adaptive_recovery_pool_pct
+        adjusted_quote = min(quote_size, config.adaptive_probe_order_quote)
+
+    if current_position_quote + adjusted_quote > pool_quote:
+        return {"blocked": True, "quote_size": 0.0}
+    return {"blocked": False, "quote_size": adjusted_quote}
 
 
 if __name__ == "__main__":

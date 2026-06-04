@@ -17,6 +17,7 @@ from .risk import evaluate_buy_risk
 from .sizing import PositionSizing, position_sizing
 from .strategy import GridStrategy, MarketSnapshot, Signal, StrategyDecision
 from .swing import SwingStrategy, split_lots
+from .trend_guard import TrendGuard, TrendState
 
 
 class TradingAgent:
@@ -59,10 +60,14 @@ class TradingAgent:
         defensive = self._defensive(snapshot, sizing, grid_lots)
         strategy = self._strategy_for_sizing(sizing, defensive)
         grid_decision = strategy.decide(snapshot, state, self._lots_for_strategy(grid_lots))
+        trend_state = self._trend_state(snapshot, sizing, grid_lots, swing_lots)
+        trend_guard = self._trend_guard()
+        grid_decision = trend_guard.apply_to_grid(grid_decision, trend_state)
         swing_decision, swing_band = self._swing_decision(snapshot, swing_lots)
+        swing_decision = trend_guard.apply_to_dip(swing_decision, trend_state)
         decision = self._choose_decision(grid_decision, swing_decision)
         risk = self._risk(snapshot)
-        if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._swing_buy_can_bypass_risk(decision, risk):
+        if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._swing_buy_can_bypass_risk(decision, risk, trend_state):
             decision = StrategyDecision(Signal.HOLD, risk["reason"], decision.reference_price, decision.price)
         order_result = self._maybe_execute(snapshot, decision)
         lot_update = self._update_ledger(decision, order_result)
@@ -78,6 +83,7 @@ class TradingAgent:
             "position_sizing": asdict(sizing),
             "defensive_mode": defensive.to_dict(),
             "swing_band": swing_band.to_dict(),
+            "trend_guard": trend_state.to_dict(),
         }
 
     def run_forever(self) -> None:
@@ -118,6 +124,7 @@ class TradingAgent:
             "position_sizing": result.get("position_sizing"),
             "defensive_mode": result.get("defensive_mode"),
             "swing_band": result.get("swing_band"),
+            "trend_guard": result.get("trend_guard"),
         }
 
     def _reload_config(self) -> None:
@@ -223,6 +230,37 @@ class TradingAgent:
             manual_center_price=self.config.swing_manual_center_price,
         ).decide(snapshot, closes, swing_lots, total_value)
 
+    def _trend_guard(self) -> TrendGuard:
+        return TrendGuard(
+            enabled=self.config.trend_guard,
+            normal_pool_pct=self.config.trend_normal_pool_pct,
+            dip_pool_pct=self.config.trend_dip_pool_pct,
+            dip_order_quote=self.config.trend_dip_order_quote,
+            rebound_pct=self.config.trend_rebound_pct,
+            interval_minutes=_interval_minutes(self.config.trend_kline_interval),
+        )
+
+    def _trend_state(
+        self,
+        snapshot: MarketSnapshot,
+        sizing: PositionSizing,
+        grid_lots: list[dict[str, Any]],
+        swing_lots: list[dict[str, Any]],
+    ) -> TrendState:
+        klines = self.client.klines(
+            self.config.symbol,
+            interval=self.config.trend_kline_interval,
+            limit=self.config.trend_kline_limit,
+        )
+        closes = [float(item[4]) for item in klines]
+        return self._trend_guard().evaluate(
+            snapshot.price,
+            closes,
+            sizing.max_position_quote,
+            _position_quote(grid_lots, snapshot.price),
+            _position_quote(swing_lots, snapshot.price),
+        )
+
     @staticmethod
     def _choose_decision(grid_decision: StrategyDecision, swing_decision: StrategyDecision) -> StrategyDecision:
         if swing_decision.signal == Signal.SELL:
@@ -234,9 +272,11 @@ class TradingAgent:
         return grid_decision
 
     @staticmethod
-    def _swing_buy_can_bypass_risk(decision: StrategyDecision, risk: dict[str, Any]) -> bool:
+    def _swing_buy_can_bypass_risk(decision: StrategyDecision, risk: dict[str, Any], trend_state: TrendState | None = None) -> bool:
         if decision.signal != Signal.BUY or not str(decision.level).startswith("swing-entry"):
             return False
+        if trend_state and trend_state.mode == "dip_probe" and trend_state.rebound:
+            return True
         reason = str(risk.get("reason", ""))
         return "floating loss" in reason
 
@@ -407,3 +447,18 @@ class TradingAgent:
 def _balance_total(balances: dict[str, dict[str, Any]], asset: str) -> float:
     item = balances.get(asset, {})
     return float(item.get("free", 0) or 0) + float(item.get("locked", 0) or 0)
+
+
+def _position_quote(lots: list[dict[str, Any]], price: float) -> float:
+    return sum(float(lot.get("remaining_quantity", 0) or 0) * price for lot in lots)
+
+
+def _interval_minutes(interval: str) -> int:
+    raw = interval.strip().lower()
+    if raw.endswith("m"):
+        return max(1, int(raw[:-1] or "1"))
+    if raw.endswith("h"):
+        return max(1, int(raw[:-1] or "1") * 60)
+    if raw.endswith("d"):
+        return max(1, int(raw[:-1] or "1") * 24 * 60)
+    return 60

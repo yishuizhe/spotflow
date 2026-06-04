@@ -69,6 +69,13 @@ class AgentConfig:
     swing_manual_center_price: float = 0.0
     swing_kline_interval: str = "1h"
     swing_kline_limit: int = 24
+    trend_guard: bool = True
+    trend_normal_pool_pct: float = 0.30
+    trend_dip_pool_pct: float = 0.10
+    trend_dip_order_quote: float = 3.0
+    trend_rebound_pct: float = 0.005
+    trend_kline_interval: str = "1h"
+    trend_kline_limit: int = 240
     manual_buy_auto_sell: bool = False
 
     @classmethod
@@ -115,5 +122,12 @@ class AgentConfig:
             swing_manual_center_price=float(os.getenv("SWING_MANUAL_CENTER_PRICE", "0")),
             swing_kline_interval=os.getenv("SWING_KLINE_INTERVAL", "1h"),
             swing_kline_limit=int(os.getenv("SWING_KLINE_LIMIT", "24")),
+            trend_guard=_bool_env("TREND_GUARD", True),
+            trend_normal_pool_pct=float(os.getenv("TREND_NORMAL_POOL_PCT", "0.30")),
+            trend_dip_pool_pct=float(os.getenv("TREND_DIP_POOL_PCT", "0.10")),
+            trend_dip_order_quote=float(os.getenv("TREND_DIP_ORDER_QUOTE", "3")),
+            trend_rebound_pct=float(os.getenv("TREND_REBOUND_PCT", "0.005")),
+            trend_kline_interval=os.getenv("TREND_KLINE_INTERVAL", "1h"),
+            trend_kline_limit=int(os.getenv("TREND_KLINE_LIMIT", "240")),
             manual_buy_auto_sell=_bool_env("MANUAL_BUY_AUTO_SELL", False),
         )
