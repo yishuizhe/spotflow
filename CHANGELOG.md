@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.1 - 2026-06-05
+
+- Changed open/closed lot display to show both the strategy level and a short ledger lot id, making repeated strategy levels easier to understand.
+- Increased the recent live order page size to 13 rows and localized order side/level labels in the dashboard.
+- Upgraded the chart from a close-price line to an OHLC candlestick chart with more time-range tabs and recent buy/sell markers.
+- Reworked the account and strategy panel into concise Chinese summaries instead of mixed internal English reason fields.
+- Made the settings modal header sticky and added clearer spacing between notification and strategy sections.
+- Added browser-saved visual themes: day, exchange dark, arena, anime campus, and music stage.
+- Added an original dashboard mascot with optional visibility, mouse-following eyes, hover explanations, and a brief BTC market status message.
+
 ## v0.3.0 - 2026-06-04
 
 - Grouped the dashboard settings modal into security, profit/manual trading, notifications, trading basics, pools/sizing, risk, defensive mode, trend guard, swing, and defensive scalp sections.
