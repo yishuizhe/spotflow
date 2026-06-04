@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from pathlib import Path
 from typing import Any
 
@@ -333,14 +333,15 @@ class TradingAgent:
         try:
             if decision.signal == Signal.BUY:
                 filters = self.client.symbol_filters(self.config.symbol)
-                if Decimal(str(decision.order_quote_size)) < filters.min_notional:
+                quote_order_qty = _round_quote_order_qty(decision.order_quote_size)
+                if quote_order_qty < filters.min_notional:
                     return {
                         "skipped": True,
                         "reason": "quote order below minNotional",
-                        "quoteOrderQty": decision.order_quote_size,
+                        "quoteOrderQty": str(quote_order_qty),
                         "minNotional": str(filters.min_notional),
                     }
-                return self.client.market_buy_quote(self.config.symbol, decision.order_quote_size)
+                return self.client.market_buy_quote(self.config.symbol, float(quote_order_qty))
 
             if decision.signal == Signal.SELL and decision.quantity > 0:
                 filters = self.client.symbol_filters(self.config.symbol)
@@ -381,7 +382,7 @@ class TradingAgent:
         decision: StrategyDecision,
         order_result: dict[str, Any] | None,
     ) -> dict[str, Any] | None:
-        if not order_result or order_result.get("dry_run") or order_result.get("skipped"):
+        if not order_result or order_result.get("dry_run") or order_result.get("skipped") or order_result.get("error"):
             return None
         if decision.signal == Signal.BUY:
             return self.ledger.add_buy(
@@ -436,7 +437,7 @@ class TradingAgent:
         decision: StrategyDecision,
         order_result: dict[str, Any] | None,
     ) -> None:
-        if not order_result or order_result.get("dry_run"):
+        if not order_result or order_result.get("dry_run") or order_result.get("skipped") or order_result.get("error"):
             return
         self.trades_path.parent.mkdir(parents=True, exist_ok=True)
         record = {
@@ -490,6 +491,10 @@ class TradingAgent:
 def _balance_total(balances: dict[str, dict[str, Any]], asset: str) -> float:
     item = balances.get(asset, {})
     return float(item.get("free", 0) or 0) + float(item.get("locked", 0) or 0)
+
+
+def _round_quote_order_qty(value: float) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
 
 def _position_quote(lots: list[dict[str, Any]], price: float) -> float:

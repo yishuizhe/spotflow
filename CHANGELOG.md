@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.9 - 2026-06-04
+
+- Fixed Binance `quoteOrderQty has too much precision` errors for account-sized defensive scalp buys by rounding market buy quote quantities down to 2 decimals.
+- Prevented failed or skipped order attempts from being written to the recent live order feed.
+
 ## v0.2.8 - 2026-06-04
 
 - Added defensive scalp mode: when the main grid is in defensive mode, a separate small pool can trade range-bound dips and rebounds.
