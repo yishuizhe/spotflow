@@ -110,82 +110,141 @@ HTML = """<!doctype html>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="shortcut icon" href="/favicon.svg">
   <style>
-    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #eef4f7;
+      --bg-soft: rgba(255,255,255,.96);
+      --panel: rgba(255,255,255,.96);
+      --panel-strong: #ffffff;
+      --text: #17212b;
+      --muted: #607080;
+      --line: #d6e0ea;
+      --line-soft: #e5ebf2;
+      --accent: #0ea5e9;
+      --accent-2: #10b981;
+      --button: #0f172a;
+      --good: #059669;
+      --bad: #e11d48;
+      --warn: #b7791f;
+      --shadow: 0 18px 42px rgba(15, 23, 42, .08);
+      --page-art: linear-gradient(150deg, rgba(14,165,233,.11), rgba(255,255,255,.58) 42%, rgba(16,185,129,.10));
+    }
+    body[data-theme="night"] {
+      color-scheme: dark;
+      --bg: #080d14; --panel: rgba(15, 23, 42, .94); --panel-strong: #111827; --text: #e5eef8; --muted: #8fa3b8; --line: #253449; --line-soft: #1e293b; --accent: #f0b90b; --accent-2: #22c55e; --button: #f0b90b; --good: #22c55e; --bad: #ef4444; --warn: #f59e0b; --shadow: 0 22px 52px rgba(0, 0, 0, .28); --page-art: radial-gradient(circle at 12% 16%, rgba(240,185,11,.16), transparent 28%), radial-gradient(circle at 86% 12%, rgba(34,197,94,.12), transparent 26%), linear-gradient(150deg, #08111f, #0f172a 55%, #061413);
+    }
+    body[data-theme="rift"] {
+      --bg: #07131f; --panel: rgba(9, 22, 36, .92); --panel-strong: #0d2035; --text: #e7f8ff; --muted: #9bb8c9; --line: #1f4b64; --line-soft: #183247; --accent: #38bdf8; --accent-2: #c084fc; --button: #155e75; --good: #34d399; --bad: #fb7185; --warn: #facc15; --shadow: 0 24px 58px rgba(2, 6, 23, .32); --page-art: radial-gradient(circle at 20% 10%, rgba(56,189,248,.22), transparent 24%), radial-gradient(circle at 82% 22%, rgba(192,132,252,.20), transparent 22%), linear-gradient(140deg, #061826, #101534 62%, #061c1b);
+    }
+    body[data-theme="anime"] {
+      --bg: #fff4f8; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #2a2433; --muted: #7a6878; --line: #f2c7d7; --line-soft: #f7dfea; --accent: #ec4899; --accent-2: #06b6d4; --button: #be185d; --good: #0f9f80; --bad: #e11d48; --warn: #d97706; --shadow: 0 20px 48px rgba(190, 24, 93, .12); --page-art: radial-gradient(circle at 10% 18%, rgba(236,72,153,.18), transparent 24%), radial-gradient(circle at 88% 18%, rgba(6,182,212,.16), transparent 24%), linear-gradient(145deg, #fff4f8, #f0fdff 68%, #fff7ed);
+    }
+    body[data-theme="stage"] {
+      --bg: #fff8e8; --panel: rgba(255,252,244,.95); --panel-strong: #fffdf8; --text: #312516; --muted: #7a6850; --line: #ead7b5; --line-soft: #f2e4ca; --accent: #f59e0b; --accent-2: #10b981; --button: #7c2d12; --good: #15803d; --bad: #dc2626; --warn: #b45309; --shadow: 0 20px 46px rgba(124, 45, 18, .12); --page-art: radial-gradient(circle at 15% 15%, rgba(245,158,11,.20), transparent 24%), radial-gradient(circle at 85% 12%, rgba(16,185,129,.14), transparent 22%), linear-gradient(145deg, #fff8e8, #fff1f2 60%, #ecfeff);
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #eef4f7; color: #17212b; overflow-x: hidden; }
-    body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: linear-gradient(150deg, rgba(14,165,233,.11), rgba(255,255,255,.58) 42%, rgba(16,185,129,.10)); }
+    body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; transition: background .28s ease, color .28s ease; }
+    body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: var(--page-art); }
     main { position: relative; max-width: 1320px; margin: 0 auto; padding: 28px; }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
     h1 { margin: 0; font-size: 30px; font-weight: 760; letter-spacing: 0; }
-    .muted { color: #607080; font-size: 14px; }
+    .muted { color: var(--muted); font-size: 14px; }
     .top-board { display: grid; grid-template-columns: 1.25fr .95fr .95fr; gap: 14px; align-items: stretch; }
-    .panel { background: rgba(255,255,255,.96); border: 1px solid #d6e0ea; border-radius: 8px; padding: 18px; box-shadow: 0 18px 42px rgba(15, 23, 42, .08); }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; box-shadow: var(--shadow); }
     .metric-card { position: relative; overflow: hidden; min-height: 172px; }
     .metric-card::after { content: ""; position: absolute; inset: auto -42px -64px auto; width: 160px; height: 160px; border-radius: 999px; background: rgba(14, 165, 233, .10); }
-    .label { color: #687789; font-size: 13px; font-weight: 760; margin-bottom: 8px; }
+    .label { color: var(--muted); font-size: 13px; font-weight: 760; margin-bottom: 8px; }
     .value { font-size: 25px; font-weight: 760; overflow-wrap: anywhere; letter-spacing: 0; }
-    .hero-symbol { font-size: 18px; color: #607080; font-weight: 760; margin-bottom: 12px; }
+    .hero-symbol { font-size: 18px; color: var(--muted); font-weight: 760; margin-bottom: 12px; }
     .hero-price { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: 0; margin-bottom: 18px; }
     .signal-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .signal-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 13px; border-radius: 999px; background: #edf5f2; color: #047857; font-weight: 800; }
+    .signal-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 13px; border-radius: 999px; background: color-mix(in srgb, var(--accent-2) 14%, transparent); color: var(--good); font-weight: 800; }
     .capital-stack { display: grid; gap: 14px; }
     .capital-value { font-size: 30px; font-weight: 800; margin-bottom: 10px; }
     .pnl-card .value { font-size: 26px; margin-bottom: 14px; }
     .control-panel { display: grid; align-content: start; gap: 14px; }
-    .control-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding-bottom: 14px; border-bottom: 1px solid #e5ebf2; }
+    .control-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
     .control-row:last-child { padding-bottom: 0; border-bottom: 0; }
-    .button-stack { display: flex; flex-wrap: wrap; gap: 8px; }
-    .profit { color: #059669; }
-    .loss { color: #e11d48; }
-    .warn { color: #b7791f; }
+    .button-stack { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+    .button-stack button { min-height: 40px; }
+    .profit { color: var(--good); }
+    .loss { color: var(--bad); }
+    .warn { color: var(--warn); }
     .chart-wrap { height: 460px; padding: 0; overflow: hidden; position: relative; }
     .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 0; }
-    .range-tabs { display: inline-flex; gap: 6px; padding: 4px; background: #eef3f8; border-radius: 8px; }
-    .range-tabs button { border: 0; border-radius: 6px; background: transparent; color: #526173; height: 30px; padding: 0 11px; font-weight: 700; cursor: pointer; }
-    .range-tabs button.active { background: #ffffff; color: #0f172a; box-shadow: 0 2px 8px rgba(15,23,42,.10); }
+    .range-tabs { display: inline-flex; gap: 6px; padding: 4px; background: color-mix(in srgb, var(--accent) 10%, var(--panel-strong)); border-radius: 8px; overflow-x: auto; }
+    .range-tabs button { border: 0; border-radius: 6px; background: transparent; color: var(--muted); height: 30px; padding: 0 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .range-tabs button.active { background: var(--panel-strong); color: var(--text); box-shadow: 0 2px 8px rgba(15,23,42,.10); }
     canvas { width: 100%; height: calc(100% - 70px); display: block; cursor: crosshair; }
-    .action-button { border: 0; border-radius: 8px; height: 38px; padding: 0 14px; background: #0f172a; color: #fff; font-weight: 800; cursor: pointer; }
-    .action-button.off { background: #e11d48; }
-    .action-button.on { background: #059669; }
-    .tooltip { position: absolute; z-index: 5; pointer-events: none; display: none; min-width: 172px; padding: 9px 10px; border-radius: 8px; background: rgba(15, 23, 42, .92); color: #f8fafc; font-size: 12px; box-shadow: 0 12px 24px rgba(15,23,42,.22); }
+    .action-button { border: 0; border-radius: 8px; min-height: 38px; padding: 0 14px; background: var(--button); color: #fff; font-weight: 800; cursor: pointer; }
+    body[data-theme="night"] .action-button { color: #111827; }
+    .action-button.off { background: var(--bad); color: #fff; }
+    .action-button.on { background: var(--good); color: #fff; }
+    .tooltip { position: absolute; z-index: 5; pointer-events: none; display: none; min-width: 188px; padding: 10px 11px; border-radius: 8px; background: rgba(15, 23, 42, .94); color: #f8fafc; font-size: 12px; box-shadow: 0 12px 24px rgba(15,23,42,.22); line-height: 1.5; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid #e5ebf2; font-size: 14px; vertical-align: top; }
-    th { color: #687789; font-weight: 650; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line-soft); font-size: 14px; vertical-align: top; }
+    th { color: var(--muted); font-weight: 650; }
     tr:last-child td, tr:last-child th { border-bottom: 0; }
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; align-items: stretch; }
     .split .panel { min-height: 430px; display: flex; flex-direction: column; }
     .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-    .panel-title { font-size: 16px; font-weight: 800; color: #263445; }
+    .panel-title { font-size: 16px; font-weight: 800; color: var(--text); }
     .account-table { margin-top: 4px; }
-    .account-table th { width: 150px; color: #6b7b8c; font-size: 13px; }
-    .account-table td { color: #1d2937; font-weight: 650; }
+    .account-summary { display: grid; gap: 12px; margin-top: 8px; }
+    .summary-card { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 88%, transparent); }
+    .summary-card strong { font-size: 18px; overflow-wrap: anywhere; }
+    .summary-card span { color: var(--muted); font-size: 12px; font-weight: 750; }
+    .status-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+    .status-item { padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid var(--line-soft); }
+    .status-item .k { color: var(--muted); font-size: 12px; font-weight: 800; margin-bottom: 5px; }
+    .status-item .v { font-weight: 760; line-height: 1.45; overflow-wrap: anywhere; }
+    .account-table th { width: 150px; color: var(--muted); font-size: 13px; }
+    .account-table td { color: var(--text); font-weight: 650; }
     .orders-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
     .orders-table td { height: 54px; vertical-align: middle; }
     .orders-panel .table-scroll { flex: 1; }
     .table-scroll { overflow-x: auto; }
     .pager { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; color: #687789; font-size: 13px; }
-    .pager button { border: 1px solid #d9e2ec; background: #fff; color: #334155; border-radius: 6px; height: 30px; min-width: 34px; padding: 0 10px; font-weight: 700; cursor: pointer; }
+    .pager button { border: 1px solid var(--line); background: var(--panel-strong); color: var(--text); border-radius: 6px; height: 30px; min-width: 34px; padding: 0 10px; font-weight: 700; cursor: pointer; }
     .pager button:disabled { opacity: .45; cursor: not-allowed; }
-    .badge { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: 999px; background: #eef3f8; color: #526173; font-weight: 700; font-size: 13px; }
+    .badge { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, var(--panel-strong)); color: var(--muted); font-weight: 700; font-size: 13px; }
     .header-actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
     .modal { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(15, 23, 42, .38); }
     .modal.open { display: flex; }
-    .modal-panel { width: min(780px, 100%); max-height: 88vh; overflow-y: auto; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; box-shadow: 0 24px 60px rgba(15,23,42,.24); padding: 18px; }
-    .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .modal-panel { width: min(820px, 100%); max-height: 88vh; overflow-y: auto; background: var(--panel-strong); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 24px 60px rgba(15,23,42,.24); padding: 0 18px 18px; }
+    .modal-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 -18px 12px; padding: 16px 18px 12px; background: var(--panel-strong); border-bottom: 1px solid var(--line-soft); }
     .modal-head h2 { margin: 0; font-size: 20px; letter-spacing: 0; }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .field label { display: block; color: #687789; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-    .field input, .field select { width: 100%; height: 38px; border: 1px solid #d9e2ec; border-radius: 7px; padding: 0 10px; font: inherit; background: #fff; }
-    .settings-section { margin-top: 14px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fbfdff; }
+    .field input, .field select { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 7px; padding: 0 10px; font: inherit; background: var(--panel-strong); color: var(--text); }
+    #configSettings { margin-top: 14px; }
+    .settings-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 88%, transparent); }
     .settings-section:first-of-type { margin-top: 0; }
-    .settings-title { margin: 0 0 10px; color: #263445; font-size: 15px; font-weight: 850; }
-    .settings-help { margin: -4px 0 12px; color: #738397; font-size: 12px; line-height: 1.5; }
+    .settings-title { margin: 0 0 10px; color: var(--text); font-size: 15px; font-weight: 850; }
+    .settings-help { margin: -4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
-    .secondary-button { border: 1px solid #d9e2ec; border-radius: 8px; height: 34px; padding: 0 13px; background: #fff; color: #334155; font-weight: 800; cursor: pointer; }
+    .secondary-button { border: 1px solid var(--line); border-radius: 8px; min-height: 38px; padding: 0 13px; background: var(--panel-strong); color: var(--text); font-weight: 800; cursor: pointer; }
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
-    .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: #eef8f4; color: #065f46; font-weight: 750; }
+    .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent-2) 12%, transparent); color: var(--good); font-weight: 750; }
+    .floating-theme { position: fixed; right: 18px; bottom: 18px; z-index: 18; width: min(300px, calc(100vw - 36px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); }
+    .theme-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 850; }
+    .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
+    .theme-chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+    .theme-toggle { width: 100%; margin-top: 8px; }
+    .mascot { position: fixed; left: 18px; bottom: 18px; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
+    .mascot.hidden { display: none; }
+    .mascot-figure { width: 88px; height: 118px; position: relative; filter: drop-shadow(0 16px 24px rgba(15,23,42,.18)); }
+    .mascot-head { position: absolute; left: 18px; top: 5px; width: 56px; height: 56px; border-radius: 24px 24px 22px 22px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+    .mascot-body { position: absolute; left: 15px; bottom: 0; width: 62px; height: 70px; border-radius: 28px 28px 12px 12px; background: linear-gradient(145deg, var(--panel-strong), color-mix(in srgb, var(--accent) 30%, var(--panel-strong))); border: 1px solid var(--line); }
+    .eye { position: absolute; top: 22px; width: 9px; height: 9px; border-radius: 50%; background: #111827; transition: transform .08s linear; }
+    .eye.left { left: 32px; } .eye.right { left: 50px; }
+    .mascot-mouth { position: absolute; left: 39px; top: 38px; width: 14px; height: 7px; border-bottom: 2px solid rgba(15,23,42,.72); border-radius: 50%; }
+    .mascot-bubble { max-width: 260px; margin-bottom: 42px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; }
+    .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
     @media (max-width: 980px) {
       main { width: 100%; overflow-x: hidden; }
       .top-board { grid-template-columns: 1fr; }
@@ -238,7 +297,7 @@ HTML = """<!doctype html>
     }
   </style>
 </head>
-<body>
+<body data-theme="day">
   <main>
     <header>
       <div>
@@ -299,10 +358,12 @@ HTML = """<!doctype html>
         </div>
         <div class="range-tabs">
           <button data-range="minute" class="active">分时</button>
+          <button data-range="5m">5分</button>
           <button data-range="15m">15分</button>
+          <button data-range="1h">1小时</button>
           <button data-range="4h">4小时</button>
-          <button data-range="day">一天</button>
-          <button data-range="week">一周</button>
+          <button data-range="day">1日</button>
+          <button data-range="week">1周</button>
         </div>
       </div>
       <canvas id="chart"></canvas>
@@ -344,22 +405,17 @@ HTML = """<!doctype html>
         </div>
         <table class="account-table">
           <tbody>
-            <tr><th>基础资产余额</th><td id="base">--</td></tr>
-            <tr><th>计价资产余额</th><td id="quote">--</td></tr>
+            <tr><th>账户余额</th><td id="base">--</td></tr>
+            <tr><th>可用现金</th><td id="quote">--</td></tr>
+            <tr><th>当前持仓</th><td id="lots">--</td></tr>
+            <tr><th>收益概况</th><td id="profitBrief">--</td></tr>
+            <tr><th>交易费用</th><td id="fees">--</td></tr>
+            <tr><th>自动买入</th><td id="buyStatus">--</td></tr>
+            <tr><th>趋势判断</th><td id="trendGuard">--</td></tr>
+            <tr><th>波段抄底</th><td id="swing">--</td></tr>
+            <tr><th>防守震荡</th><td id="scalp">--</td></tr>
             <tr><th>账本同步</th><td id="ledgerSync">--</td></tr>
-            <tr><th>参考价</th><td id="reference">--</td></tr>
-            <tr><th>资金档位</th><td id="sizing">--</td></tr>
-            <tr><th>策略原因</th><td id="reason">--</td></tr>
-            <tr><th>未平批次</th><td id="lots">--</td></tr>
-            <tr><th>已实现利润</th><td id="realized">--</td></tr>
-            <tr><th>未实现批次盈亏</th><td id="unrealized">--</td></tr>
-            <tr><th>手续费统计</th><td id="fees">--</td></tr>
-            <tr><th>风控状态</th><td id="risk">--</td></tr>
-            <tr><th>防守模式</th><td id="defensive">--</td></tr>
-            <tr><th>趋势保护</th><td id="trendGuard">--</td></tr>
-            <tr><th>波段策略</th><td id="swing">--</td></tr>
-            <tr><th>防守小仓</th><td id="scalp">--</td></tr>
-            <tr><th>错误</th><td id="error">--</td></tr>
+            <tr><th>提示</th><td id="error">--</td></tr>
           </tbody>
         </table>
       </div>
@@ -372,7 +428,7 @@ HTML = """<!doctype html>
         </div>
         <div class="table-scroll">
           <table class="orders-table">
-            <thead><tr><th>时间</th><th>方向</th><th>档位</th><th>金额</th></tr></thead>
+            <thead><tr><th>时间</th><th>方向</th><th>批次</th><th>金额</th></tr></thead>
             <tbody id="trades"><tr><td colspan="4" class="muted">暂无订单</td></tr></tbody>
           </table>
         </div>
@@ -382,7 +438,7 @@ HTML = """<!doctype html>
     <section class="panel" style="margin-top:14px">
       <div class="label">未平批次</div>
       <table>
-        <thead><tr><th>档位</th><th>状态</th><th>成本价</th><th>预计卖价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>浮盈亏</th><th>操作</th></tr></thead>
+        <thead><tr><th>批次</th><th>状态</th><th>成本价</th><th>预计卖价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>浮盈亏</th><th>操作</th></tr></thead>
         <tbody id="openLots"><tr><td colspan="9" class="muted">暂无未平批次</td></tr></tbody>
       </table>
     </section>
@@ -396,7 +452,7 @@ HTML = """<!doctype html>
     <section class="panel" style="margin-top:14px">
       <div class="label">已平批次</div>
       <table>
-        <thead><tr><th>关闭时间</th><th>档位</th><th>状态</th><th>成本价</th><th>卖出价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>净利润</th></tr></thead>
+        <thead><tr><th>关闭时间</th><th>批次</th><th>状态</th><th>成本价</th><th>卖出价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>净利润</th></tr></thead>
         <tbody id="closedLots"><tr><td colspan="9" class="muted">暂无已平批次</td></tr></tbody>
       </table>
       <div class="pager"><button id="closedPrev">上一页</button><span id="closedPage">1 / 1</span><button id="closedNext">下一页</button></div>
@@ -451,12 +507,36 @@ HTML = """<!doctype html>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
   </div>
+  <aside class="floating-theme" id="themePanel">
+    <div class="theme-head">
+      <span>主题设置</span>
+      <button class="secondary-button" id="openSettingsFloat" data-help="打开系统设置，可以修改密码、邮件、资金池、风控和策略参数。">设置</button>
+    </div>
+    <div class="theme-grid">
+      <button class="theme-chip" data-theme-choice="day">白天</button>
+      <button class="theme-chip" data-theme-choice="night">交易所深色</button>
+      <button class="theme-chip" data-theme-choice="rift">星界竞技</button>
+      <button class="theme-chip" data-theme-choice="anime">动画校园</button>
+      <button class="theme-chip" data-theme-choice="stage">樱音舞台</button>
+    </div>
+    <button class="secondary-button theme-toggle" id="mascotToggle">隐藏看板助手</button>
+  </aside>
+  <aside class="mascot" id="mascot">
+    <div class="mascot-figure">
+      <div class="mascot-body"></div>
+      <div class="mascot-head">
+        <span class="eye left"></span><span class="eye right"></span><span class="mascot-mouth"></span>
+      </div>
+    </div>
+    <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
+  </aside>
   <script>
     const fmt = (n, digits = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: digits });
-    const rangeLabels = { minute: '近 60 分钟', '15m': '近 15 分钟', '4h': '近 4 小时', day: '近 24 小时', week: '近 7 天' };
+    const rangeLabels = { minute: '近 60 分钟', '5m': '近 5 分钟', '15m': '近 15 分钟', '1h': '近 1 小时', '4h': '近 4 小时', day: '近 24 小时', week: '近 7 天' };
     let activeRange = 'minute';
     let chartZoom = { start: 0, end: 1 };
     let chartPoints = [];
+    let chartTrades = [];
     let chartReference = null;
     let chartLayout = null;
     let latestTrades = [];
@@ -467,7 +547,7 @@ HTML = """<!doctype html>
     let settingsLoaded = false;
     let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
     let loginValidated = false;
-    const tradePageSize = 12;
+    const tradePageSize = 13;
     const closedPageSize = 8;
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
@@ -520,8 +600,9 @@ HTML = """<!doctype html>
         return false;
       }
     }
-    function drawChart(points, reference) {
+    function drawChart(points, reference, trades) {
       chartPoints = points || [];
+      chartTrades = trades || chartTrades || [];
       chartReference = reference;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -529,12 +610,18 @@ HTML = """<!doctype html>
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
-      const pad = { left: 86, right: 22, top: 18, bottom: 58 };
+      const styles = getComputedStyle(document.body);
+      const lineColor = styles.getPropertyValue('--line-soft').trim() || '#e5ebf2';
+      const textColor = styles.getPropertyValue('--muted').trim() || '#687789';
+      const upColor = styles.getPropertyValue('--good').trim() || '#059669';
+      const downColor = styles.getPropertyValue('--bad').trim() || '#e11d48';
+      const accent = styles.getPropertyValue('--accent').trim() || '#0ea5e9';
+      const pad = { left: 88, right: 72, top: 24, bottom: 64 };
       const total = chartPoints.length;
       const startIndex = Math.max(0, Math.floor(chartZoom.start * Math.max(total - 1, 1)));
       const endIndex = Math.min(total, Math.max(startIndex + 2, Math.ceil(chartZoom.end * total)));
       const visible = chartPoints.slice(startIndex, endIndex);
-      const values = visible.map(p => p.close);
+      const values = visible.flatMap(p => [Number(p.high ?? p.close), Number(p.low ?? p.close), Number(p.close)]);
       if (reference) values.push(reference);
       if (!values.length) return;
       const min = Math.min(...values);
@@ -544,14 +631,14 @@ HTML = """<!doctype html>
       const plotH = rect.height - pad.top - pad.bottom;
       const x = i => pad.left + plotW * (i / Math.max(visible.length - 1, 1));
       const y = v => pad.top + (rect.height - pad.top - pad.bottom) * (1 - (v - min) / span);
-      ctx.strokeStyle = '#e5ebf2'; ctx.lineWidth = 1;
-      ctx.fillStyle = '#687789'; ctx.font = '12px sans-serif';
+      ctx.strokeStyle = lineColor; ctx.lineWidth = 1;
+      ctx.fillStyle = textColor; ctx.font = '12px sans-serif';
       for (let i = 0; i < 5; i++) {
         const yy = pad.top + i * plotH / 4;
         const val = max - span * i / 4;
         ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(rect.width - pad.right, yy); ctx.stroke();
-        ctx.textAlign = 'right';
-        ctx.fillText(fmt(val, 2), pad.left - 10, yy + 4);
+        ctx.textAlign = 'left';
+        ctx.fillText(fmt(val, 2), rect.width - pad.right + 10, yy + 4);
       }
       for (let i = 0; i < 5; i++) {
         const xx = pad.left + i * plotW / 4;
@@ -561,13 +648,40 @@ HTML = """<!doctype html>
         ctx.strokeStyle = '#d97706'; ctx.setLineDash([6, 5]); ctx.beginPath();
         ctx.moveTo(pad.left, y(reference)); ctx.lineTo(rect.width - pad.right, y(reference)); ctx.stroke(); ctx.setLineDash([]);
       }
-      const gradient = ctx.createLinearGradient(pad.left, 0, rect.width - pad.right, 0);
-      gradient.addColorStop(0, '#0ea5e9');
-      gradient.addColorStop(1, '#10b981');
-      ctx.strokeStyle = gradient; ctx.lineWidth = 2.5; ctx.beginPath();
-      visible.forEach((p, i) => { const xx = x(i), yy = y(p.close); i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); });
-      ctx.stroke();
-      ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+      const candleW = Math.max(3, Math.min(14, plotW / Math.max(visible.length, 1) * .58));
+      visible.forEach((p, i) => {
+        const open = Number(p.open ?? p.close), close = Number(p.close), high = Number(p.high ?? close), low = Number(p.low ?? close);
+        const xx = x(i);
+        const color = close >= open ? upColor : downColor;
+        ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(xx, y(high)); ctx.lineTo(xx, y(low)); ctx.stroke();
+        const top = Math.min(y(open), y(close));
+        const bodyH = Math.max(2, Math.abs(y(open) - y(close)));
+        ctx.fillRect(xx - candleW / 2, top, candleW, bodyH);
+      });
+      const visibleStart = visible[0]?.open_time || 0;
+      const visibleEnd = visible[visible.length - 1]?.open_time || 0;
+      const markers = (chartTrades || []).filter(t => {
+        const ts = Date.parse(t.ts);
+        return Number.isFinite(ts) && ts >= visibleStart && ts <= visibleEnd;
+      });
+      markers.forEach(t => {
+        const ts = Date.parse(t.ts);
+        const i = Math.max(0, Math.min(visible.length - 1, visible.findIndex(p => p.open_time >= ts)));
+        const p = visible[i < 0 ? visible.length - 1 : i];
+        const side = String(t.side || '');
+        const yy = side.includes('SELL') ? y(Number(p.high ?? p.close)) - 12 : y(Number(p.low ?? p.close)) + 12;
+        const xx = x(i < 0 ? visible.length - 1 : i);
+        ctx.fillStyle = side.includes('SELL') ? downColor : upColor;
+        ctx.beginPath();
+        if (side.includes('SELL')) {
+          ctx.moveTo(xx, yy - 7); ctx.lineTo(xx - 6, yy + 5); ctx.lineTo(xx + 6, yy + 5);
+        } else {
+          ctx.moveTo(xx, yy + 7); ctx.lineTo(xx - 6, yy - 5); ctx.lineTo(xx + 6, yy - 5);
+        }
+        ctx.closePath(); ctx.fill();
+      });
+      ctx.strokeStyle = lineColor; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, rect.height - pad.bottom); ctx.lineTo(rect.width - pad.right, rect.height - pad.bottom); ctx.stroke();
       if (visible.length) {
         const labels = [0, Math.floor((visible.length - 1) / 2), visible.length - 1];
@@ -601,13 +715,13 @@ HTML = """<!doctype html>
       const pages = Math.max(1, Math.ceil(rows.length / tradePageSize));
       tradePage = Math.min(tradePage, pages - 1);
       rows.slice(tradePage * tradePageSize, (tradePage + 1) * tradePageSize).forEach(t => {
-        const sideClass = t.side === 'BUY' ? 'profit' : 'warn';
+        const sideClass = String(t.side || '').includes('BUY') ? 'profit' : 'warn';
         const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${t.side}</span></td><td>${t.level}</td><td>${fmt(quote || 0, 6)}</td>`;
+        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${fmt(quote || 0, 6)}</td>`;
         tbody.appendChild(tr);
       });
-      applyMobileLabels(tbody, ['时间', '方向', '档位', '金额']);
+      applyMobileLabels(tbody, ['时间', '方向', '批次', '金额']);
       updatePager('trade', tradePage, pages);
     }
     function applyMobileLabels(tbody, labels) {
@@ -627,6 +741,70 @@ HTML = """<!doctype html>
         || positiveNumber(order.origQuoteOrderQty)
         || (positiveNumber(order.price) * positiveNumber(order.origQty))
         || positiveNumber(trade.target_quote_size);
+    }
+    function sideLabel(side) {
+      const raw = String(side || '');
+      if (raw.includes('BUY')) return raw.includes('LIMIT') ? '限价买入' : '买入';
+      if (raw.includes('SELL')) return raw.includes('LIMIT') ? '限价卖出' : '卖出';
+      if (raw.includes('CANCELED')) return '取消挂单';
+      return raw || '--';
+    }
+    function levelLabel(level) {
+      const raw = String(level || 'legacy');
+      const map = {
+        starter: '启动仓',
+        'lot-target': '目标卖出',
+        'manual-entry': '人工买入',
+        'manual-limit-buy': '人工限价买入',
+        'manual-limit-sell': '批次限价卖出',
+        'manual-external-limit-sell': '外部持仓限价卖出',
+        'scalp-target': '防守震荡卖出'
+      };
+      if (map[raw]) return map[raw];
+      if (raw.startsWith('buy-')) return `网格 ${raw}`;
+      if (raw.startsWith('swing-')) return '波段抄底';
+      if (raw.startsWith('scalp-entry')) return '防守震荡买入';
+      return raw;
+    }
+    function lotDisplay(lot) {
+      const id = String(lot.id || '').slice(0, 8);
+      return `${levelLabel(lot.level)}${id ? `<span class="lot-id">批次 ${id}</span>` : ''}`;
+    }
+    function zhReason(text) {
+      const raw = String(text || '--');
+      return raw
+        .replace('max position limit reached', '已达到最大持仓限制')
+        .replace('hold neutral', '等待更合适的位置')
+        .replace('risk: floating loss', '浮亏超过保护阈值')
+        .replace('exceeds limit', '，暂停普通买入')
+        .replace('below 24h and 7d averages with falling 24h average', '价格低于 24 小时和 7 日均线，且 24 小时均线下行')
+        .replace('defensive range bound', '防守期横盘，可做小仓震荡')
+        .replace('not in defensive mode', '当前不在防守期')
+        .replace('outside scalp band', '不在防守震荡区间');
+    }
+    function setTheme(theme) {
+      const next = theme || localStorage.getItem('dashboardTheme') || 'day';
+      document.body.dataset.theme = next;
+      localStorage.setItem('dashboardTheme', next);
+      document.querySelectorAll('[data-theme-choice]').forEach(button => button.classList.toggle('active', button.dataset.themeChoice === next));
+      drawChart(chartPoints, chartReference, chartTrades);
+    }
+    function setMascotVisible(visible) {
+      localStorage.setItem('dashboardMascot', visible ? 'on' : 'off');
+      document.getElementById('mascot').classList.toggle('hidden', !visible);
+      document.getElementById('mascotToggle').textContent = visible ? '隐藏看板助手' : '显示看板助手';
+    }
+    function mascotSay(text) {
+      const bubble = document.getElementById('mascotBubble');
+      if (bubble) bubble.textContent = text;
+    }
+    function updateMascotMarket(data) {
+      const trend = data.trend_guard || {};
+      const pnl = Number(data.pnl_quote || 0);
+      const price = fmt(data.price || 0, 2);
+      if (trend.downtrend) mascotSay(`BTC 现在约 ${price}，处在下跌趋势保护里。普通网格会谨慎，波段和防守震荡按各自规则找机会。`);
+      else if (pnl >= 0) mascotSay(`BTC 现在约 ${price}，账户相对基准为正。别急，批次还是按目标价和风险规则走。`);
+      else mascotSay(`BTC 现在约 ${price}，账户相对基准偏弱。先看现金、浮亏和趋势保护，不要被短线晃到。`);
     }
     function renderOpenLots(lots, currentPrice, pendingOrders) {
       const tbody = document.getElementById('openLots');
@@ -657,10 +835,10 @@ HTML = """<!doctype html>
         const externalClose = `<button class="secondary-button" data-external-close="${lot.id}">外部已卖</button>`;
         const action = `<div style="display:flex;gap:6px;flex-wrap:wrap">${manualSell}${autoToggle}${limitSell}${externalClose}</div>`;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${lot.level || 'legacy'}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 8)}</td><td>${fmt(target, 8)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 8)}</td><td>${fmt(target, 8)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
-      applyMobileLabels(tbody, ['档位', '状态', '成本价', '预计卖价', '手动价格', '数量', '手续费', '浮盈亏', '操作']);
+      applyMobileLabels(tbody, ['批次', '状态', '成本价', '预计卖价', '手动价格', '数量', '手续费', '浮盈亏', '操作']);
       tbody.querySelectorAll('[data-manual-sell]').forEach(button => {
         button.addEventListener('click', () => manualSell(button.dataset.manualSell));
       });
@@ -687,7 +865,7 @@ HTML = """<!doctype html>
         const sideClass = order.side === 'BUY' ? 'profit' : 'warn';
         const action = canCancel ? `<button class="secondary-button" data-cancel-order="${order.order_id}">取消</button>` : '--';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${order.side}</span></td><td>${fmt(order.limit_price || 0, 8)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${sideLabel(order.side)}</span></td><td>${fmt(order.limit_price || 0, 8)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['时间', '方向', '限价', '数量', '状态', '操作']);
@@ -713,10 +891,10 @@ HTML = """<!doctype html>
         const status = lot.external_close ? '外部已卖' : (lot.limit_sell_filled ? '限价卖出成交' : '自动/市价卖出');
         const manualPrice = lot.manual_sell_price ? fmt(lot.manual_sell_price, 8) : '--';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${lot.closed_at ? new Date(lot.closed_at).toLocaleString() : '--'}</td><td>${lot.level || 'legacy'}</td><td><span class="badge">${status}</span></td><td>${fmt(lot.buy_price || 0, 8)}</td><td>${fmt(lot.sell_price || 0, 8)}</td><td>${manualPrice}</td><td>${fmt(lot.quantity || 0, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td>`;
+        tr.innerHTML = `<td>${lot.closed_at ? new Date(lot.closed_at).toLocaleString() : '--'}</td><td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(lot.buy_price || 0, 8)}</td><td>${fmt(lot.sell_price || 0, 8)}</td><td>${manualPrice}</td><td>${fmt(lot.quantity || 0, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td>`;
         tbody.appendChild(tr);
       });
-      applyMobileLabels(tbody, ['关闭时间', '档位', '状态', '成本价', '卖出价', '手动价格', '数量', '手续费', '净利润']);
+      applyMobileLabels(tbody, ['关闭时间', '批次', '状态', '成本价', '卖出价', '手动价格', '数量', '手续费', '净利润']);
       updatePager('closed', closedPage, pages);
     }
     function updatePager(kind, page, pages) {
@@ -871,27 +1049,23 @@ HTML = """<!doctype html>
               ? `需同步：账本 ${fmt(ledgerSync.tracked_base_quantity || 0, 8)} / 账户 ${fmt(ledgerSync.account_base_balance || 0, 8)} ${data.base_asset}`
               : `正常：账本 ${fmt(ledgerSync.tracked_base_quantity || 0, 8)} / 账户 ${fmt(ledgerSync.account_base_balance || 0, 8)} ${data.base_asset}`;
             document.getElementById('ledgerSync').textContent = ledgerSyncText;
-            document.getElementById('reference').textContent = fmt(data.reference_price, 8);
             const sizing = data.position_sizing || {};
-            document.getElementById('sizing').textContent = `${sizing.tier || '--'} / 新单 ${fmt(sizing.order_quote_size || 0, 4)} / 最大 ${fmt(sizing.max_position_quote || 0, 4)} ${data.quote_asset}`;
-            document.getElementById('reason').textContent = data.reason;
-            document.getElementById('lots').textContent = (data.open_lots || []).length + ' 批';
-            document.getElementById('realized').textContent = fmt(data.realized_pnl || 0, 6) + ' ' + data.quote_asset;
-            document.getElementById('unrealized').textContent = fmt(data.unrealized_lot_pnl || 0, 6) + ' ' + data.quote_asset;
+            document.getElementById('lots').textContent = `${(data.open_lots || []).length} 批未平，当前新单约 ${fmt(sizing.order_quote_size || 0, 2)} ${data.quote_asset}，最大持仓约 ${fmt(sizing.max_position_quote || 0, 2)} ${data.quote_asset}`;
+            document.getElementById('profitBrief').textContent = `已实现 ${fmt(data.realized_pnl || 0, 4)}，未平浮动 ${fmt(data.unrealized_lot_pnl || 0, 4)} ${data.quote_asset}`;
             const feeSummary = data.fee_summary || {};
             document.getElementById('fees').textContent = `未平 ${fmt(feeSummary.open_fee_quote || 0, 6)} / 已平 ${fmt(feeSummary.closed_fee_quote || 0, 6)} / 合计 ${fmt(feeSummary.total_fee_quote || 0, 6)} ${data.quote_asset}`;
-        document.getElementById('risk').textContent = data.risk ? data.risk.reason : '--';
+        document.getElementById('buyStatus').textContent = data.risk && data.risk.allow_buy ? `允许自动买入，参考价 ${fmt(data.reference_price, 2)}` : `暂停普通买入：${zhReason(data.risk ? data.risk.reason : data.reason)}`;
         const defensive = data.defensive_mode || {};
-        const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.join(' / ') : '未触发';
-        document.getElementById('defensive').textContent = `${defensive.enabled ? '开启' : '关闭'} / ${defensive.active ? '防守中' : '正常'} / 间距 ${fmt((defensive.add_on_step_pct || 0) * 100, 3)}% / ${defensiveReasons}`;
+        const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.map(zhReason).join(' / ') : '未触发';
         const trend = data.trend_guard || {};
-        document.getElementById('trendGuard').textContent = `${trend.enabled ? '开启' : '关闭'} / ${trend.mode || '--'} / ${trend.reason || '--'} / 24h ${fmt(trend.ma24 || 0, 2)} / 7d ${fmt(trend.ma7d || 0, 2)} / 普通池 ${fmt(trend.grid_position_quote || 0, 2)}/${fmt(trend.normal_pool_quote || 0, 2)} / 抄底池 ${fmt(trend.dip_position_quote || 0, 2)}/${fmt(trend.dip_pool_quote || 0, 2)} ${data.quote_asset}`;
+        document.getElementById('trendGuard').textContent = `${trend.downtrend ? '下跌趋势保护中' : '趋势正常'}；24小时均线 ${fmt(trend.ma24 || 0, 2)}，7日均线 ${fmt(trend.ma7d || 0, 2)}；${zhReason(trend.reason || '')}`;
         const swing = data.swing_band || {};
-        document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'} / 中枢 ${fmt(swing.center_price || 0, 2)} / 买 ${fmt(swing.buy_price || 0, 2)} / 卖 ${fmt(swing.sell_price || 0, 2)} / 资金池 ${fmt(swing.allocation_quote || 0, 4)} / 已占用 ${fmt(swing.position_quote || 0, 4)} / 单笔 ${fmt(swing.min_order_quote || 0, 2)}-${fmt(swing.max_order_quote || 0, 2)} ${data.quote_asset}`;
+        document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'}；买入线 ${fmt(swing.buy_price || 0, 2)}，目标线 ${fmt(swing.sell_price || 0, 2)}；已用 ${fmt(swing.position_quote || 0, 2)} / ${fmt(swing.allocation_quote || 0, 2)} ${data.quote_asset}`;
         const scalp = data.defensive_scalp || {};
-        document.getElementById('scalp').textContent = `${scalp.enabled ? '开启' : '关闭'} / ${scalp.active ? '防守期' : '等待'} / ${scalp.range_bound ? '可做震荡' : '不做'} / 中枢 ${fmt(scalp.center_price || 0, 2)} / 买 ${fmt(scalp.buy_price || 0, 2)} / 卖 ${fmt(scalp.sell_price || 0, 2)} / 资金池 ${fmt(scalp.allocation_quote || 0, 4)} / 已占用 ${fmt(scalp.position_quote || 0, 4)} / 单笔 ${fmt(scalp.order_quote_size || 0, 2)} ${data.quote_asset} / ${scalp.reason || '--'}`;
+        document.getElementById('scalp').textContent = `${scalp.enabled ? '开启' : '关闭'}；${scalp.active ? '防守期' : '等待防守'}，${scalp.range_bound ? '可吃小震荡' : '暂不适合'}；单笔约 ${fmt(scalp.order_quote_size || 0, 2)}，已用 ${fmt(scalp.position_quote || 0, 2)} / ${fmt(scalp.allocation_quote || 0, 2)} ${data.quote_asset}`;
         document.getElementById('error').textContent = '--';
-        drawChart(data.price_history || [], data.reference_price);
+        updateMascotMarket(data);
+        drawChart(data.price_history || [], data.reference_price, data.trades || []);
         document.getElementById('chartLabel').textContent = rangeLabels[activeRange] || activeRange;
         renderTrades(data.trades || []);
         renderOpenLots(data.open_lots || [], data.price, data.pending_orders || []);
@@ -915,7 +1089,7 @@ HTML = """<!doctype html>
     });
     refresh();
     setInterval(refresh, 5000);
-    window.addEventListener('resize', () => drawChart(chartPoints, chartReference));
+    window.addEventListener('resize', () => drawChart(chartPoints, chartReference, chartTrades));
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
       const box = canvas.getBoundingClientRect();
@@ -928,12 +1102,12 @@ HTML = """<!doctype html>
       if (nextStart < 0) { nextEnd -= nextStart; nextStart = 0; }
       if (nextEnd > 1) { nextStart -= nextEnd - 1; nextEnd = 1; }
       chartZoom = { start: Math.max(0, nextStart), end: Math.min(1, nextEnd) };
-      drawChart(chartPoints, chartReference);
+      drawChart(chartPoints, chartReference, chartTrades);
     }, { passive: false });
     canvas.addEventListener('mousemove', event => {
       const hit = chartPointAt(event.clientX);
       if (!hit || !chartLayout) return;
-      drawChart(chartPoints, chartReference);
+      drawChart(chartPoints, chartReference, chartTrades);
       ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(hit.x, chartLayout.pad.top); ctx.lineTo(hit.x, chartLayout.rect.height - chartLayout.pad.bottom); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(chartLayout.pad.left, hit.y); ctx.lineTo(chartLayout.rect.width - chartLayout.pad.right, hit.y); ctx.stroke(); ctx.setLineDash([]);
@@ -941,11 +1115,11 @@ HTML = """<!doctype html>
       chartTip.style.display = 'block';
       chartTip.style.left = Math.min(box.width - 190, Math.max(10, event.clientX - box.left + 14)) + 'px';
       chartTip.style.top = Math.max(54, event.clientY - box.top - 12) + 'px';
-      chartTip.innerHTML = `<strong>${fmt(hit.point.close, 8)}</strong><br>${new Date(hit.point.open_time).toLocaleString()}`;
+      chartTip.innerHTML = `<strong>${fmt(hit.point.close, 8)}</strong><br>开 ${fmt(hit.point.open ?? hit.point.close, 4)} / 高 ${fmt(hit.point.high ?? hit.point.close, 4)}<br>低 ${fmt(hit.point.low ?? hit.point.close, 4)} / 收 ${fmt(hit.point.close, 4)}<br>${new Date(hit.point.open_time).toLocaleString()}`;
     });
     canvas.addEventListener('mouseleave', () => {
       chartTip.style.display = 'none';
-      drawChart(chartPoints, chartReference);
+      drawChart(chartPoints, chartReference, chartTrades);
     });
     document.getElementById('tradePrev').addEventListener('click', () => { tradePage = Math.max(0, tradePage - 1); renderTrades(); });
     document.getElementById('tradeNext').addEventListener('click', () => { tradePage += 1; renderTrades(); });
@@ -1103,6 +1277,33 @@ HTML = """<!doctype html>
       await loadSettings();
       refresh();
     });
+    document.getElementById('openSettingsFloat').addEventListener('click', () => document.getElementById('settingsOpen').click());
+    document.querySelectorAll('[data-theme-choice]').forEach(button => {
+      button.addEventListener('click', () => setTheme(button.dataset.themeChoice));
+    });
+    document.getElementById('mascotToggle').addEventListener('click', () => {
+      const hidden = document.getElementById('mascot').classList.contains('hidden');
+      setMascotVisible(hidden);
+    });
+    document.addEventListener('mousemove', event => {
+      const dx = Math.max(-4, Math.min(4, (event.clientX / Math.max(window.innerWidth, 1) - .5) * 8));
+      const dy = Math.max(-3, Math.min(3, (event.clientY / Math.max(window.innerHeight, 1) - .5) * 6));
+      document.querySelectorAll('.eye').forEach(eye => { eye.style.transform = `translate(${dx}px, ${dy}px)`; });
+    });
+    document.addEventListener('mouseover', event => {
+      const target = event.target.closest('[data-help], button, th');
+      if (!target) return;
+      const help = target.dataset.help || {
+        execute: '控制自动策略是否允许真实下单。手动交易仍需要二次确认密码。',
+        manualBuy: '人工买入会写入账本，可以选择是否交给脚本自动卖出。',
+        externalLimitSell: '用于卖出脚本账本外的 BTC 持仓，不会关闭任何未平批次。',
+        calibrate: '把当前资产设为新的盈亏基准，适合充值后校准。',
+        runBacktest: '用当前资金和策略参数跑模拟或历史 K 线回测。'
+      }[target.id];
+      if (help) mascotSay(help);
+    });
+    setTheme(localStorage.getItem('dashboardTheme') || 'day');
+    setMascotVisible(localStorage.getItem('dashboardMascot') !== 'off');
     document.querySelectorAll('.range-tabs button').forEach(btn => {
       btn.addEventListener('click', () => {
         activeRange = btn.dataset.range;
@@ -1249,7 +1450,14 @@ class Dashboard:
             "chart_range": range_key,
             "chart_interval": interval,
             "price_history": [
-                {"open_time": int(item[0]), "close": float(item[4])}
+                {
+                    "open_time": int(item[0]),
+                    "open": float(item[1]),
+                    "high": float(item[2]),
+                    "low": float(item[3]),
+                    "close": float(item[4]),
+                    "volume": float(item[5]),
+                }
                 for item in klines
             ],
             "trades": self.trades(),
@@ -1278,7 +1486,9 @@ class Dashboard:
     def chart_window(range_key: str) -> tuple[str, int]:
         windows = {
             "minute": ("1m", 60),
+            "5m": ("1m", 5),
             "15m": ("1m", 15),
+            "1h": ("1m", 60),
             "4h": ("5m", 48),
             "day": ("15m", 96),
             "week": ("1h", 168),
