@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.6 - 2026-06-04
+
+- Added live trend guard using 24h and 7d moving averages; ordinary grid buys pause when price is below both averages and the 24h average is falling.
+- Kept dip-buying available during downtrends, but only after rebound confirmation and within a separate small dip pool.
+- Added dashboard trend guard status with mode, moving averages, normal grid pool usage, and dip pool usage.
+
 ## v0.2.5 - 2026-06-04
 
 - Fixed month-scale historical dashboard backtests timing out through Nginx by automatically selecting `1m`, `5m`, or `15m` klines based on date range.
