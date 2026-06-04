@@ -11,6 +11,7 @@ from typing import Any
 from .binance_client import BinanceAPIError, BinanceSpotClient
 from .config import AgentConfig
 from .defensive import DefensiveMode, enrich_lots_with_defensive_targets, evaluate_defensive_mode
+from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .ledger import PositionLedger
 from .portfolio import metrics_asdict, portfolio_metrics
 from .risk import evaluate_buy_risk
@@ -57,6 +58,7 @@ class TradingAgent:
         sizing = self._position_sizing(snapshot)
         open_lots = self.ledger.open_lots()
         grid_lots, swing_lots = split_lots(open_lots)
+        scalp_lots = [lot for lot in open_lots if is_scalp_lot(lot)]
         defensive = self._defensive(snapshot, sizing, grid_lots)
         strategy = self._strategy_for_sizing(sizing, defensive)
         grid_decision = strategy.decide(snapshot, state, self._lots_for_strategy(grid_lots))
@@ -65,9 +67,10 @@ class TradingAgent:
         grid_decision = trend_guard.apply_to_grid(grid_decision, trend_state)
         swing_decision, swing_band = self._swing_decision(snapshot, swing_lots)
         swing_decision = trend_guard.apply_to_dip(swing_decision, trend_state)
-        decision = self._choose_decision(grid_decision, swing_decision)
+        scalp_decision, scalp_state = self._scalp_decision(snapshot, scalp_lots, defensive.active)
+        decision = self._choose_decision(grid_decision, swing_decision, scalp_decision)
         risk = self._risk(snapshot)
-        if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._swing_buy_can_bypass_risk(decision, risk, trend_state):
+        if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._buy_can_bypass_risk(decision, risk, trend_state, scalp_state):
             decision = StrategyDecision(Signal.HOLD, risk["reason"], decision.reference_price, decision.price)
         order_result = self._maybe_execute(snapshot, decision)
         lot_update = self._update_ledger(decision, order_result)
@@ -84,6 +87,7 @@ class TradingAgent:
             "defensive_mode": defensive.to_dict(),
             "swing_band": swing_band.to_dict(),
             "trend_guard": trend_state.to_dict(),
+            "defensive_scalp": scalp_state.to_dict(),
         }
 
     def run_forever(self) -> None:
@@ -125,6 +129,7 @@ class TradingAgent:
             "defensive_mode": result.get("defensive_mode"),
             "swing_band": result.get("swing_band"),
             "trend_guard": result.get("trend_guard"),
+            "defensive_scalp": result.get("defensive_scalp"),
         }
 
     def _reload_config(self) -> None:
@@ -230,6 +235,27 @@ class TradingAgent:
             manual_center_price=self.config.swing_manual_center_price,
         ).decide(snapshot, closes, swing_lots, total_value)
 
+    def _scalp_decision(
+        self,
+        snapshot: MarketSnapshot,
+        scalp_lots: list[dict[str, Any]],
+        defensive_active: bool,
+    ) -> tuple[StrategyDecision, Any]:
+        total_value = snapshot.quote_balance + snapshot.base_balance * snapshot.price
+        return DefensiveScalpStrategy(
+            enabled=self.config.defensive_scalp,
+            allocation_pct=self.config.defensive_scalp_allocation_pct,
+            order_pct=self.config.defensive_scalp_order_pct,
+            min_order_quote=self.config.defensive_scalp_min_order_quote,
+            max_order_quote=self.config.defensive_scalp_max_order_quote,
+            buy_drop_pct=self.config.defensive_scalp_buy_drop_pct,
+            take_profit_pct=self.config.defensive_scalp_take_profit_pct,
+            add_step_pct=self.config.defensive_scalp_add_step_pct,
+            min_range_pct=self.config.defensive_scalp_min_range_pct,
+            max_range_pct=self.config.defensive_scalp_max_range_pct,
+            trading_fee_rate=self.config.trading_fee_rate,
+        ).decide(snapshot, snapshot.recent_closes, scalp_lots, total_value, defensive_active)
+
     def _trend_guard(self) -> TrendGuard:
         return TrendGuard(
             enabled=self.config.trend_guard,
@@ -262,18 +288,35 @@ class TradingAgent:
         )
 
     @staticmethod
-    def _choose_decision(grid_decision: StrategyDecision, swing_decision: StrategyDecision) -> StrategyDecision:
+    def _choose_decision(
+        grid_decision: StrategyDecision,
+        swing_decision: StrategyDecision,
+        scalp_decision: StrategyDecision,
+    ) -> StrategyDecision:
+        if scalp_decision.signal == Signal.SELL:
+            return scalp_decision
         if swing_decision.signal == Signal.SELL:
             return swing_decision
         if grid_decision.signal == Signal.SELL:
             return grid_decision
         if swing_decision.signal == Signal.BUY:
             return swing_decision
+        if scalp_decision.signal == Signal.BUY:
+            return scalp_decision
         return grid_decision
 
     @staticmethod
-    def _swing_buy_can_bypass_risk(decision: StrategyDecision, risk: dict[str, Any], trend_state: TrendState | None = None) -> bool:
-        if decision.signal != Signal.BUY or not str(decision.level).startswith("swing-entry"):
+    def _buy_can_bypass_risk(
+        decision: StrategyDecision,
+        risk: dict[str, Any],
+        trend_state: TrendState | None = None,
+        scalp_state: Any | None = None,
+    ) -> bool:
+        if decision.signal != Signal.BUY:
+            return False
+        if str(decision.level).startswith("scalp-entry"):
+            return bool(scalp_state and scalp_state.active and scalp_state.range_bound)
+        if not str(decision.level).startswith("swing-entry"):
             return False
         if trend_state and trend_state.mode == "dip_probe" and trend_state.rebound:
             return True

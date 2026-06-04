@@ -16,6 +16,7 @@ from typing import Any
 from .binance_client import BinanceAPIError, BinanceSpotClient
 from .config import AgentConfig
 from .defensive import enrich_lot_with_defensive_target, enrich_lots_with_defensive_targets, evaluate_defensive_mode
+from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .ledger import PositionLedger
 from .local_backtest import BacktestConfig, run_scenarios, run_backtest
 from .portfolio import metrics_asdict, portfolio_metrics, reset_baseline
@@ -301,6 +302,7 @@ HTML = """<!doctype html>
             <tr><th>防守模式</th><td id="defensive">--</td></tr>
             <tr><th>趋势保护</th><td id="trendGuard">--</td></tr>
             <tr><th>波段策略</th><td id="swing">--</td></tr>
+            <tr><th>防守小仓</th><td id="scalp">--</td></tr>
             <tr><th>错误</th><td id="error">--</td></tr>
           </tbody>
         </table>
@@ -750,6 +752,8 @@ HTML = """<!doctype html>
         document.getElementById('trendGuard').textContent = `${trend.enabled ? '开启' : '关闭'} / ${trend.mode || '--'} / ${trend.reason || '--'} / 24h ${fmt(trend.ma24 || 0, 2)} / 7d ${fmt(trend.ma7d || 0, 2)} / 普通池 ${fmt(trend.grid_position_quote || 0, 2)}/${fmt(trend.normal_pool_quote || 0, 2)} / 抄底池 ${fmt(trend.dip_position_quote || 0, 2)}/${fmt(trend.dip_pool_quote || 0, 2)} ${data.quote_asset}`;
         const swing = data.swing_band || {};
         document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'} / 中枢 ${fmt(swing.center_price || 0, 2)} / 买 ${fmt(swing.buy_price || 0, 2)} / 卖 ${fmt(swing.sell_price || 0, 2)} / 资金池 ${fmt(swing.allocation_quote || 0, 4)} / 已占用 ${fmt(swing.position_quote || 0, 4)} / 单笔 ${fmt(swing.min_order_quote || 0, 2)}-${fmt(swing.max_order_quote || 0, 2)} ${data.quote_asset}`;
+        const scalp = data.defensive_scalp || {};
+        document.getElementById('scalp').textContent = `${scalp.enabled ? '开启' : '关闭'} / ${scalp.active ? '防守期' : '等待'} / ${scalp.range_bound ? '可做震荡' : '不做'} / 中枢 ${fmt(scalp.center_price || 0, 2)} / 买 ${fmt(scalp.buy_price || 0, 2)} / 卖 ${fmt(scalp.sell_price || 0, 2)} / 资金池 ${fmt(scalp.allocation_quote || 0, 4)} / 已占用 ${fmt(scalp.position_quote || 0, 4)} / 单笔 ${fmt(scalp.order_quote_size || 0, 2)} ${data.quote_asset} / ${scalp.reason || '--'}`;
         document.getElementById('error').textContent = '--';
         drawChart(data.price_history || [], data.reference_price);
         document.getElementById('chartLabel').textContent = rangeLabels[activeRange] || activeRange;
@@ -1014,7 +1018,8 @@ class Dashboard:
         )
         raw_open_lots = self.ledger.open_lots()
         raw_grid_lots, raw_swing_lots = split_lots(raw_open_lots)
-        open_lots = [self._lot_with_fee(lot) for lot in self._lots_for_strategy(raw_grid_lots) + raw_swing_lots]
+        raw_scalp_lots = [lot for lot in raw_open_lots if is_scalp_lot(lot)]
+        open_lots = [self._lot_with_fee(lot) for lot in self._lots_for_strategy(raw_grid_lots) + raw_swing_lots + raw_scalp_lots]
         sizing = position_sizing(
             quote_balance + base_balance * price,
             self.config.order_quote_size,
@@ -1031,9 +1036,10 @@ class Dashboard:
             add_on_step_pct=defensive["add_on_step_pct"],
         )
         trend_guard = self.trend_guard(price, sizing.max_position_quote, raw_grid_lots, raw_swing_lots)
-        decision = strategy.decide(snapshot, self.grid_state(), [lot for lot in open_lots if not str(lot.get("level", "")).startswith("swing-")])
+        decision = strategy.decide(snapshot, self.grid_state(), [lot for lot in open_lots if not str(lot.get("level", "")).startswith(("swing-", "scalp-"))])
         decision = self._trend_guard().apply_to_grid(decision, trend_guard)
         swing_band = self.swing_band(price, raw_swing_lots, quote_balance + base_balance * price)
+        scalp_state = self.defensive_scalp(price, reference_closes, raw_scalp_lots, quote_balance + base_balance * price, defensive["active"])
         metrics = portfolio_metrics(
             self.baseline_path,
             symbol=self.config.symbol,
@@ -1053,6 +1059,7 @@ class Dashboard:
             "defensive_mode": defensive,
             "trend_guard": trend_guard.to_dict(),
             "swing_band": swing_band,
+            "defensive_scalp": scalp_state,
             "chart_range": range_key,
             "chart_interval": interval,
             "price_history": [
@@ -1103,6 +1110,16 @@ class Dashboard:
             enriched["effective_target_price"] = target_price
             enriched["target_price_adjusted"] = False
             enriched["target_note"] = "swing"
+            enriched["target_profit_pct_effective"] = (
+                (target_price / float(enriched.get("buy_price") or 1)) - 1
+                if target_price > 0 and float(enriched.get("buy_price") or 0) > 0
+                else 0.0
+            )
+        if is_scalp_lot(enriched):
+            target_price = float(enriched.get("target_price") or 0)
+            enriched["effective_target_price"] = target_price
+            enriched["target_price_adjusted"] = False
+            enriched["target_note"] = "scalp"
             enriched["target_profit_pct_effective"] = (
                 (target_price / float(enriched.get("buy_price") or 1)) - 1
                 if target_price > 0 and float(enriched.get("buy_price") or 0) > 0
@@ -1180,6 +1197,29 @@ class Dashboard:
             max_band_pct=self.config.swing_max_band_pct,
             manual_center_price=self.config.swing_manual_center_price,
         ).band(price, closes, swing_lots, total_value_quote).to_dict()
+
+    def defensive_scalp(
+        self,
+        price: float,
+        recent_closes: list[float],
+        scalp_lots: list[dict[str, Any]],
+        total_value_quote: float,
+        defensive_active: bool,
+    ) -> dict[str, Any]:
+        snapshot = MarketSnapshot(self.config.symbol, price, recent_closes, 0.0, 0.0)
+        return DefensiveScalpStrategy(
+            enabled=self.config.defensive_scalp,
+            allocation_pct=self.config.defensive_scalp_allocation_pct,
+            order_pct=self.config.defensive_scalp_order_pct,
+            min_order_quote=self.config.defensive_scalp_min_order_quote,
+            max_order_quote=self.config.defensive_scalp_max_order_quote,
+            buy_drop_pct=self.config.defensive_scalp_buy_drop_pct,
+            take_profit_pct=self.config.defensive_scalp_take_profit_pct,
+            add_step_pct=self.config.defensive_scalp_add_step_pct,
+            min_range_pct=self.config.defensive_scalp_min_range_pct,
+            max_range_pct=self.config.defensive_scalp_max_range_pct,
+            trading_fee_rate=self.config.trading_fee_rate,
+        ).state(snapshot, recent_closes, scalp_lots, total_value_quote, defensive_active).to_dict()
 
     def _trend_guard(self) -> TrendGuard:
         return TrendGuard(

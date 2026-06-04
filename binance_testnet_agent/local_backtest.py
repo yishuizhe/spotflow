@@ -8,9 +8,10 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 
 from .defensive import enrich_lots_with_defensive_targets, evaluate_defensive_mode
+from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .risk import evaluate_buy_risk
 from .sizing import position_sizing
-from .strategy import GridStrategy, MarketSnapshot, Signal
+from .strategy import GridStrategy, MarketSnapshot, Signal, StrategyDecision
 
 
 @dataclass
@@ -52,6 +53,16 @@ class BacktestConfig:
     adaptive_probe_order_quote: float = 5.0
     adaptive_strict_order_quote: float = 3.0
     adaptive_rebound_pct: float = 0.005
+    defensive_scalp: bool = True
+    defensive_scalp_allocation_pct: float = 0.08
+    defensive_scalp_order_pct: float = 0.018
+    defensive_scalp_min_order_quote: float = 6.0
+    defensive_scalp_max_order_quote: float = 10.0
+    defensive_scalp_buy_drop_pct: float = 0.004
+    defensive_scalp_take_profit_pct: float = 0.005
+    defensive_scalp_add_step_pct: float = 0.003
+    defensive_scalp_min_range_pct: float = 0.004
+    defensive_scalp_max_range_pct: float = 0.018
     seed: int = 20260529
 
 
@@ -133,7 +144,7 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
             add_on_step_pct=defensive.add_on_step_pct,
         )
         strategy_lots = enrich_lots_with_defensive_targets(
-            lots,
+            [lot for lot in lots if not is_scalp_lot(lot)],
             enabled=config.defensive_mode,
             target_profit_pct=config.take_profit_pct,
             trading_fee_rate=config.trading_fee_rate,
@@ -144,6 +155,12 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
             now=now,
         )
         decision = strategy.decide(snapshot, state, strategy_lots)
+        scalp_lots = [lot for lot in lots if is_scalp_lot(lot)]
+        scalp_decision, _scalp_state = _defensive_scalp_decision(snapshot, recent, scalp_lots, quote_balance + base_balance * price, defensive.active, config)
+        if scalp_decision.signal == Signal.SELL:
+            decision = scalp_decision
+        elif decision.signal == Signal.HOLD and scalp_decision.signal == Signal.BUY:
+            decision = scalp_decision
         risk = evaluate_buy_risk(
             price=price,
             recent_closes=recent,
@@ -156,14 +173,15 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
         )
 
         if decision.signal == Signal.BUY:
-            if not risk.allow_buy:
+            scalp_buy = str(decision.level).startswith("scalp-entry")
+            if not risk.allow_buy and not scalp_buy:
                 blocked_buys += 1
                 current_value = quote_balance + sum(float(lot["remaining_quantity"]) * price for lot in lots)
                 peak_value = max(peak_value, current_value)
                 max_drawdown = max(max_drawdown, peak_value - current_value)
                 continue
             quote_size = decision.order_quote_size
-            trend = _trend_buy_guard(
+            trend = {"blocked": False, "quote_size": quote_size} if scalp_buy else _trend_buy_guard(
                 prices[: index + 1],
                 quote_size,
                 sizing.max_position_quote,
@@ -194,7 +212,7 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
                         "buy_fee_quote": buy_fee,
                         "quantity": qty,
                         "remaining_quantity": qty,
-                        "target_price": price * (1 + config.take_profit_pct + config.trading_fee_rate * 2),
+                        "target_price": decision.target_price or price * (1 + config.take_profit_pct + config.trading_fee_rate * 2),
                         "status": "open",
                         "opened_at": now.isoformat(),
                     }
@@ -450,6 +468,29 @@ def _adaptive_regime_buy_guard(
     if current_position_quote + adjusted_quote > pool_quote:
         return {"blocked": True, "quote_size": 0.0}
     return {"blocked": False, "quote_size": adjusted_quote}
+
+
+def _defensive_scalp_decision(
+    snapshot: MarketSnapshot,
+    recent: list[float],
+    scalp_lots: list[dict[str, float | str]],
+    total_value_quote: float,
+    defensive_active: bool,
+    config: BacktestConfig,
+) -> tuple[StrategyDecision, object]:
+    return DefensiveScalpStrategy(
+        enabled=config.defensive_scalp,
+        allocation_pct=config.defensive_scalp_allocation_pct,
+        order_pct=config.defensive_scalp_order_pct,
+        min_order_quote=config.defensive_scalp_min_order_quote,
+        max_order_quote=config.defensive_scalp_max_order_quote,
+        buy_drop_pct=config.defensive_scalp_buy_drop_pct,
+        take_profit_pct=config.defensive_scalp_take_profit_pct,
+        add_step_pct=config.defensive_scalp_add_step_pct,
+        min_range_pct=config.defensive_scalp_min_range_pct,
+        max_range_pct=config.defensive_scalp_max_range_pct,
+        trading_fee_rate=config.trading_fee_rate,
+    ).decide(snapshot, recent, scalp_lots, total_value_quote, defensive_active)
 
 
 if __name__ == "__main__":
