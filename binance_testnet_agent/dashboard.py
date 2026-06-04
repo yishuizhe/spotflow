@@ -399,7 +399,19 @@ HTML = """<!doctype html>
     }
     async function apiGet(path, payload, tradingPassword) {
       const res = await fetch(path, { method: 'GET', cache: 'no-store', headers: authHeaders(tradingPassword, payload) });
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      const raw = await res.text();
+      let data = {};
+      if (raw && contentType.includes('application/json')) {
+        try {
+          data = JSON.parse(raw);
+        } catch (err) {
+          throw new Error(`接口返回了异常 JSON：${raw.slice(0, 120)}`);
+        }
+      } else if (raw) {
+        const plain = raw.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();
+        throw new Error(plain ? `接口返回了非 JSON 内容：${plain.slice(0, 160)}` : `接口返回了非 JSON 内容，HTTP ${res.status}`);
+      }
       if (res.status === 403) {
         loginValidated = false;
         document.getElementById('loginModal').classList.add('open');
@@ -722,7 +734,7 @@ HTML = """<!doctype html>
         const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.join(' / ') : '未触发';
         document.getElementById('defensive').textContent = `${defensive.enabled ? '开启' : '关闭'} / ${defensive.active ? '防守中' : '正常'} / 间距 ${fmt((defensive.add_on_step_pct || 0) * 100, 3)}% / ${defensiveReasons}`;
         const swing = data.swing_band || {};
-        document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'} / 中枢 ${fmt(swing.center_price || 0, 2)} / 买 ${fmt(swing.buy_price || 0, 2)} / 卖 ${fmt(swing.sell_price || 0, 2)} / 预算 ${fmt(swing.allocation_quote || 0, 4)} ${data.quote_asset}`;
+        document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'} / 中枢 ${fmt(swing.center_price || 0, 2)} / 买 ${fmt(swing.buy_price || 0, 2)} / 卖 ${fmt(swing.sell_price || 0, 2)} / 资金池 ${fmt(swing.allocation_quote || 0, 4)} / 已占用 ${fmt(swing.position_quote || 0, 4)} / 单笔 ${fmt(swing.min_order_quote || 0, 2)}-${fmt(swing.max_order_quote || 0, 2)} ${data.quote_asset}`;
         document.getElementById('error').textContent = '--';
         drawChart(data.price_history || [], data.reference_price);
         document.getElementById('chartLabel').textContent = rangeLabels[activeRange] || activeRange;
@@ -785,8 +797,6 @@ HTML = """<!doctype html>
     document.getElementById('closedPrev').addEventListener('click', () => { closedPage = Math.max(0, closedPage - 1); renderClosedLots(); });
     document.getElementById('closedNext').addEventListener('click', () => { closedPage += 1; renderClosedLots(); });
     document.getElementById('runBacktest').addEventListener('click', async () => {
-      const password = window.prompt('输入交易开关密码以运行回测');
-      if (!password) return;
       document.getElementById('backtestStatus').textContent = '回测运行中...';
       try {
         const data = await apiGet('/api/backtest', {
@@ -795,7 +805,7 @@ HTML = """<!doctype html>
           end: document.getElementById('backtestEnd').value.trim(),
           days: document.getElementById('backtestDays').value.trim(),
           take_profits: document.getElementById('backtestProfits').value.trim()
-        }, password);
+        });
         renderBacktest(data);
         document.getElementById('backtestStatus').textContent = `完成，初始资金 ${fmt(data.initial_quote || 0, 4)} USDT`;
       } catch (err) {
@@ -1800,6 +1810,13 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 self._send(404, b"not found", "text/plain; charset=utf-8")
                 return
             payload = self._payload()
+            if path == "/api/backtest":
+                try:
+                    result = dashboard.backtest(payload)
+                except Exception as exc:
+                    result = {"error": f"backtest failed: {exc}"}
+                self._send(200, json.dumps(result, sort_keys=True).encode(), "application/json")
+                return
             trading_password = self.headers.get("X-Trading-Password", "")
             if not dashboard.trading_password_ok(trading_password):
                 self._send(403, json.dumps({"error": "invalid trading password"}).encode(), "application/json")
@@ -1808,11 +1825,6 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 try:
                     result = dashboard.calibrate_baseline()
                 except BinanceAPIError as exc:
-                    result = {"error": str(exc)}
-            elif path == "/api/backtest":
-                try:
-                    result = dashboard.backtest(payload)
-                except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/settings/update":
                 result = dashboard.update_settings(payload)

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.4 - 2026-06-04
+
+- Fixed dashboard backtest handling when an upstream or proxy returns HTML instead of JSON; the UI now reports a readable non-JSON response error instead of `Unexpected token '<'`.
+- Removed the trading-toggle password prompt from dashboard backtests because backtests do not place orders.
+- Changed swing strategy display from a vague budget label to pool, used amount, and per-order range.
+- Exposed swing min/max order quote in the dashboard status payload for clearer live strategy display.
+
 ## v0.2.3 - 2026-06-03
 
 - Improved mobile dashboard tables by rendering recent trades, open lots, pending orders, closed lots, and backtest results as compact cards on narrow screens.

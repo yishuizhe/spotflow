@@ -15,6 +15,8 @@ class SwingBand:
     band_pct: float
     allocation_quote: float
     position_quote: float
+    min_order_quote: float
+    max_order_quote: float
     reason: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -136,6 +138,8 @@ class SwingStrategy:
             band_pct=band_pct,
             allocation_quote=allocation_quote,
             position_quote=position_quote,
+            min_order_quote=self.min_order_quote,
+            max_order_quote=self.max_order_quote,
             reason=reason,
         )
 
