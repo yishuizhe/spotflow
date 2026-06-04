@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+from .storage import SQLiteJsonListStore
 
 
 @dataclass(frozen=True)
@@ -32,19 +33,16 @@ class Lot:
 class PositionLedger:
     def __init__(self, path: Path) -> None:
         self.path = path
+        self.store = SQLiteJsonListStore(path, "lots")
 
     def lots(self) -> list[dict[str, Any]]:
-        if not self.path.exists():
-            return []
-        try:
-            payload = json.loads(self.path.read_text())
-        except json.JSONDecodeError:
-            return []
-        return payload.get("lots", [])
+        return self.store.load()
 
     def save(self, lots: list[dict[str, Any]]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({"lots": lots}, indent=2, sort_keys=True) + "\n")
+        self.store.save(lots)
+
+    def update_lots(self, mutator: Callable[[list[dict[str, Any]]], Any]) -> Any:
+        return self.store.update(mutator)
 
     def open_lots(self) -> list[dict[str, Any]]:
         return [lot for lot in self.lots() if lot.get("status") == "open" and float(lot.get("remaining_quantity", 0)) > 0]
@@ -109,12 +107,13 @@ class PositionLedger:
             buy_fee_quote=quote_qty * trading_fee_rate,
             auto_sell=auto_sell,
         )
-        lots = self.lots()
-        record = asdict(lot)
-        record["level"] = level
-        lots.append(record)
-        self.save(lots)
-        return record
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any]:
+            record = asdict(lot)
+            record["level"] = level
+            lots.append(record)
+            return record
+
+        return self.update_lots(mutate)
 
     def close_lot(self, lot_id: str, order: dict[str, Any], trading_fee_rate: float) -> dict[str, Any] | None:
         executed_qty = float(order.get("executedQty", 0) or 0)
@@ -122,32 +121,33 @@ class PositionLedger:
         if executed_qty <= 0 or quote_qty <= 0:
             return None
 
-        lots = self.lots()
-        for lot in lots:
-            if lot.get("id") != lot_id or lot.get("status") != "open":
-                continue
-            sold_qty = min(executed_qty, float(lot["remaining_quantity"]))
-            sell_price = quote_qty / executed_qty
-            cost = float(lot["buy_price"]) * sold_qty
-            proceeds = sell_price * sold_qty
-            buy_fee = float(lot.get("buy_fee_quote") or 0)
-            sell_fee = proceeds * trading_fee_rate
-            total_fee = buy_fee + sell_fee
-            remaining = max(float(lot["remaining_quantity"]) - sold_qty, 0.0)
-            lot["remaining_quantity"] = remaining
-            lot["sell_price"] = sell_price
-            lot["sell_quote"] = proceeds
-            lot["realized_pnl"] = proceeds - cost
-            lot["buy_fee_quote"] = buy_fee
-            lot["sell_fee_quote"] = sell_fee
-            lot["total_fee_quote"] = total_fee
-            lot["net_realized_pnl"] = proceeds - cost - total_fee
-            if remaining <= 0.00000001:
-                lot["status"] = "closed"
-                lot["closed_at"] = _now()
-            self.save(lots)
-            return lot
-        return None
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any] | None:
+            for lot in lots:
+                if lot.get("id") != lot_id or lot.get("status") != "open":
+                    continue
+                sold_qty = min(executed_qty, float(lot["remaining_quantity"]))
+                sell_price = quote_qty / executed_qty
+                cost = float(lot["buy_price"]) * sold_qty
+                proceeds = sell_price * sold_qty
+                buy_fee = float(lot.get("buy_fee_quote") or 0)
+                sell_fee = proceeds * trading_fee_rate
+                total_fee = buy_fee + sell_fee
+                remaining = max(float(lot["remaining_quantity"]) - sold_qty, 0.0)
+                lot["remaining_quantity"] = remaining
+                lot["sell_price"] = sell_price
+                lot["sell_quote"] = proceeds
+                lot["realized_pnl"] = proceeds - cost
+                lot["buy_fee_quote"] = buy_fee
+                lot["sell_fee_quote"] = sell_fee
+                lot["total_fee_quote"] = total_fee
+                lot["net_realized_pnl"] = proceeds - cost - total_fee
+                if remaining <= 0.00000001:
+                    lot["status"] = "closed"
+                    lot["closed_at"] = _now()
+                return lot
+            return None
+
+        return self.update_lots(mutate)
 
     def external_close_lot(
         self,
@@ -160,71 +160,73 @@ class PositionLedger:
         if sell_price <= 0:
             return None
 
-        lots = self.lots()
-        for lot in lots:
-            if lot.get("id") != lot_id or lot.get("status") != "open":
-                continue
-            open_qty = float(lot.get("remaining_quantity", 0) or 0)
-            sold_qty = min(open_qty, quantity if quantity and quantity > 0 else open_qty)
-            if sold_qty <= 0:
-                return None
-            cost = float(lot["buy_price"]) * sold_qty
-            proceeds = sell_price * sold_qty
-            buy_fee = float(lot.get("buy_fee_quote") or 0)
-            sell_fee = proceeds * trading_fee_rate
-            total_fee = buy_fee + sell_fee
-            remaining = max(open_qty - sold_qty, 0.0)
-            lot["remaining_quantity"] = remaining
-            lot["sell_price"] = sell_price
-            lot["sell_quote"] = proceeds
-            lot["realized_pnl"] = proceeds - cost
-            lot["buy_fee_quote"] = buy_fee
-            lot["sell_fee_quote"] = sell_fee
-            lot["total_fee_quote"] = total_fee
-            lot["net_realized_pnl"] = proceeds - cost - total_fee
-            lot["external_close"] = True
-            lot["external_close_note"] = note
-            lot["manual_sell_price"] = sell_price
-            if remaining <= 0.00000001:
-                lot["status"] = "closed"
-                lot["closed_at"] = _now()
-            self.save(lots)
-            return lot
-        return None
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any] | None:
+            for lot in lots:
+                if lot.get("id") != lot_id or lot.get("status") != "open":
+                    continue
+                open_qty = float(lot.get("remaining_quantity", 0) or 0)
+                sold_qty = min(open_qty, quantity if quantity and quantity > 0 else open_qty)
+                if sold_qty <= 0:
+                    return None
+                cost = float(lot["buy_price"]) * sold_qty
+                proceeds = sell_price * sold_qty
+                buy_fee = float(lot.get("buy_fee_quote") or 0)
+                sell_fee = proceeds * trading_fee_rate
+                total_fee = buy_fee + sell_fee
+                remaining = max(open_qty - sold_qty, 0.0)
+                lot["remaining_quantity"] = remaining
+                lot["sell_price"] = sell_price
+                lot["sell_quote"] = proceeds
+                lot["realized_pnl"] = proceeds - cost
+                lot["buy_fee_quote"] = buy_fee
+                lot["sell_fee_quote"] = sell_fee
+                lot["total_fee_quote"] = total_fee
+                lot["net_realized_pnl"] = proceeds - cost - total_fee
+                lot["external_close"] = True
+                lot["external_close_note"] = note
+                lot["manual_sell_price"] = sell_price
+                if remaining <= 0.00000001:
+                    lot["status"] = "closed"
+                    lot["closed_at"] = _now()
+                return lot
+            return None
+
+        return self.update_lots(mutate)
 
     def set_auto_sell(self, lot_id: str, enabled: bool) -> dict[str, Any] | None:
-        lots = self.lots()
-        for lot in lots:
-            if lot.get("id") != lot_id or lot.get("status") != "open":
-                continue
-            lot["auto_sell"] = enabled
-            self.save(lots)
-            return lot
-        return None
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any] | None:
+            for lot in lots:
+                if lot.get("id") != lot_id or lot.get("status") != "open":
+                    continue
+                lot["auto_sell"] = enabled
+                return lot
+            return None
+
+        return self.update_lots(mutate)
 
     def retarget_open_lots(self, target_profit_pct: float, trading_fee_rate: float) -> dict[str, int]:
-        lots = self.lots()
-        updated = 0
-        skipped = 0
-        for lot in lots:
-            if lot.get("status") != "open" or float(lot.get("remaining_quantity", 0) or 0) <= 0:
-                continue
-            level = str(lot.get("level", ""))
-            if level.startswith("swing-") or lot.get("pending_limit_sell_order_id"):
-                skipped += 1
-                continue
-            buy_price = float(lot.get("buy_price") or 0)
-            if buy_price <= 0:
-                skipped += 1
-                continue
-            lot["target_price"] = buy_price * (1 + target_profit_pct + trading_fee_rate * 2)
-            lot.pop("effective_target_price", None)
-            lot.pop("target_price_adjusted", None)
-            lot["target_profit_pct"] = target_profit_pct
-            updated += 1
-        if updated:
-            self.save(lots)
-        return {"updated": updated, "skipped": skipped}
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, int]:
+            updated = 0
+            skipped = 0
+            for lot in lots:
+                if lot.get("status") != "open" or float(lot.get("remaining_quantity", 0) or 0) <= 0:
+                    continue
+                level = str(lot.get("level", ""))
+                if level.startswith("swing-") or lot.get("pending_limit_sell_order_id"):
+                    skipped += 1
+                    continue
+                buy_price = float(lot.get("buy_price") or 0)
+                if buy_price <= 0:
+                    skipped += 1
+                    continue
+                lot["target_price"] = buy_price * (1 + target_profit_pct + trading_fee_rate * 2)
+                lot.pop("effective_target_price", None)
+                lot.pop("target_price_adjusted", None)
+                lot["target_profit_pct"] = target_profit_pct
+                updated += 1
+            return {"updated": updated, "skipped": skipped}
+
+        return self.update_lots(mutate)
 
 
 def _now() -> str:

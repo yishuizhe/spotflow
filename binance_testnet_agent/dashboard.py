@@ -20,6 +20,7 @@ from .ledger import PositionLedger
 from .local_backtest import BacktestConfig, run_scenarios, run_backtest
 from .portfolio import metrics_asdict, portfolio_metrics, reset_baseline
 from .sizing import position_sizing
+from .storage import SQLiteJsonListStore
 from .strategy import GridStrategy, MarketSnapshot
 from .swing import SwingStrategy, is_swing_lot, split_lots
 from .trend_guard import TrendGuard
@@ -81,6 +82,7 @@ HTML = """<!doctype html>
     .control-panel { display: grid; align-content: start; gap: 14px; }
     .control-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding-bottom: 14px; border-bottom: 1px solid #e5ebf2; }
     .control-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .button-stack { display: flex; flex-wrap: wrap; gap: 8px; }
     .profit { color: #059669; }
     .loss { color: #e11d48; }
     .warn { color: #b7791f; }
@@ -225,7 +227,10 @@ HTML = """<!doctype html>
             <div class="label">人工交易</div>
             <div class="muted">人工买入会记账，默认不自动卖出</div>
           </div>
-          <button class="action-button" id="manualBuy">人工买入并记账</button>
+          <div class="button-stack">
+            <button class="action-button" id="manualBuy">人工买入并记账</button>
+            <button class="secondary-button" id="externalLimitSell">外部持仓限价卖出</button>
+          </div>
         </div>
       </div>
     </section>
@@ -389,7 +394,7 @@ HTML = """<!doctype html>
     let settingsLoaded = false;
     let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
     let loginValidated = false;
-    const tradePageSize = 10;
+    const tradePageSize = 12;
     const closedPageSize = 8;
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
@@ -550,11 +555,14 @@ HTML = """<!doctype html>
         || (positiveNumber(order.price) * positiveNumber(order.origQty))
         || positiveNumber(trade.target_quote_size);
     }
-    function renderOpenLots(lots, currentPrice) {
+    function renderOpenLots(lots, currentPrice, pendingOrders) {
       const tbody = document.getElementById('openLots');
       tbody.innerHTML = '';
       if (!lots.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="muted">暂无未平批次</td></tr>';
+        const externalSells = (pendingOrders || []).filter(order => order.side === 'SELL' && !order.lot_id && !order.processed && !['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED'].includes(order.status || ''));
+        tbody.innerHTML = externalSells.length
+          ? `<tr><td colspan="9" class="muted">暂无未平批次。当前有 ${externalSells.length} 个外部持仓限价卖单，请在下方“限价挂单”查看；外部挂单不会生成账本批次。</td></tr>`
+          : '<tr><td colspan="9" class="muted">暂无未平批次。按批次限价卖出需要先有脚本账本批次；如果是外部持仓，请用上方“外部持仓限价卖出”。</td></tr>';
         return;
       }
       lots.forEach(lot => {
@@ -746,7 +754,7 @@ HTML = """<!doctype html>
         drawChart(data.price_history || [], data.reference_price);
         document.getElementById('chartLabel').textContent = rangeLabels[activeRange] || activeRange;
         renderTrades(data.trades || []);
-        renderOpenLots(data.open_lots || [], data.price);
+        renderOpenLots(data.open_lots || [], data.price, data.pending_orders || []);
         renderPendingOrders(data.pending_orders || []);
         renderClosedLots(data.closed_lots || []);
         document.getElementById('updated').textContent = '更新时间 ' + new Date().toLocaleString();
@@ -859,6 +867,19 @@ HTML = """<!doctype html>
       } catch (err) { window.alert(err.message || err); return; }
       refresh();
     });
+    document.getElementById('externalLimitSell').addEventListener('click', async () => {
+      const quantity = window.prompt('输入要限价卖出的 BTC 数量。这个操作只给账户可用 BTC 挂单，不会关闭任何账本批次。');
+      if (!quantity) return;
+      const limitPrice = window.prompt('输入限价卖出价格。成交后会记录在最近订单和限价挂单里。');
+      if (!limitPrice) return;
+      const password = window.prompt('输入交易开关密码以确认外部持仓限价卖出');
+      if (!password) return;
+      const confirmed = window.confirm(`确认挂外部持仓限价卖出单：数量 ${quantity} BTC，价格 ${limitPrice}？这不会关闭未平批次。`);
+      if (!confirmed) return;
+      try { await apiGet('/api/manual/external-limit-sell', { quantity, limit_price: limitPrice }, password); }
+      catch (err) { window.alert(err.message || err); return; }
+      refresh();
+    });
     async function manualSell(lotId) {
       const password = window.prompt('输入交易开关密码以确认手动卖出');
       if (!password) return;
@@ -965,6 +986,7 @@ class Dashboard:
         self.control_path = Path("data/control.json")
         self.ledger = PositionLedger(Path(f"data/lots_{config.symbol}.json"))
         self.pending_path = Path(f"data/pending_orders_{config.symbol}.json")
+        self.pending_store = SQLiteJsonListStore(self.pending_path, "orders")
         self.client = BinanceSpotClient(config.base_url, config.api_key, config.api_secret)
         self.strategy = GridStrategy(
             grid_step_pct=config.grid_step_pct,
@@ -1445,24 +1467,29 @@ class Dashboard:
         return {"lot": updated}
 
     def manual_limit_sell(self, lot_id: str, limit_price: float) -> dict[str, Any]:
-        lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
-        if not lot:
-            return {"error": "open lot not found"}
-        if lot.get("pending_limit_sell_order_id"):
-            return {"error": "lot already has a pending limit sell order"}
         if limit_price <= 0:
             return {"error": "limit price must be positive"}
+        lot = self.reserve_lot_pending_sell(lot_id, limit_price)
+        if not lot:
+            return {"error": "没有找到这个未平批次，或这个批次已经有未成交限价卖单。如果你要卖的是脚本外部持仓，请使用“外部持仓限价卖出”。"}
         quantity = Decimal(str(lot.get("remaining_quantity", 0) or 0))
         if quantity <= 0:
+            self.clear_lot_pending_sell(lot_id)
             return {"error": "lot has no remaining quantity"}
         filters = self.client.symbol_filters(self.config.symbol)
         price = self.client.round_price(Decimal(str(limit_price)), filters)
         rounded_qty = self.client.round_quantity(quantity, filters)
         if rounded_qty < filters.min_qty:
+            self.clear_lot_pending_sell(lot_id)
             return {"error": f"quantity below minQty {filters.min_qty}"}
         if rounded_qty * price < filters.min_notional:
+            self.clear_lot_pending_sell(lot_id)
             return {"error": f"quantity below minNotional {filters.min_notional}"}
-        order = self.client.limit_sell_qty(self.config.symbol, rounded_qty, price)
+        try:
+            order = self.client.limit_sell_qty(self.config.symbol, rounded_qty, price)
+        except BinanceAPIError:
+            self.clear_lot_pending_sell(lot_id)
+            raise
         self.mark_lot_pending_sell(lot_id, int(order["orderId"]), float(price))
         pending = self.add_pending_order(
             {
@@ -1480,111 +1507,162 @@ class Dashboard:
         self._record_manual_trade("LIMIT_SELL_PLACED", float(rounded_qty * price), order, pending)
         return {"order": order, "pending": pending}
 
+    def manual_external_limit_sell(self, quantity: float, limit_price: float) -> dict[str, Any]:
+        if quantity <= 0:
+            return {"error": "sell quantity must be positive"}
+        if limit_price <= 0:
+            return {"error": "limit price must be positive"}
+        account = self.client.account()
+        balances = {item["asset"]: item for item in account.get("balances", [])}
+        base_free, _, _ = _balance_parts(balances, self.config.base_asset)
+        filters = self.client.symbol_filters(self.config.symbol)
+        price = self.client.round_price(Decimal(str(limit_price)), filters)
+        rounded_qty = self.client.round_quantity(Decimal(str(quantity)), filters)
+        if rounded_qty <= 0:
+            return {"error": "quantity becomes zero after exchange step-size rounding"}
+        if rounded_qty > Decimal(str(base_free)):
+            return {"error": f"available {self.config.base_asset} balance is only {base_free}"}
+        if rounded_qty < filters.min_qty:
+            return {"error": f"quantity below minQty {filters.min_qty}"}
+        if rounded_qty * price < filters.min_notional:
+            return {"error": f"quantity below minNotional {filters.min_notional}"}
+        order = self.client.limit_sell_qty(self.config.symbol, rounded_qty, price)
+        pending = self.add_pending_order(
+            {
+                "order_id": int(order["orderId"]),
+                "side": "SELL",
+                "level": "manual-external-limit-sell",
+                "limit_price": float(price),
+                "quantity": float(rounded_qty),
+                "quote_size": float(rounded_qty * price),
+                "status": order.get("status", "NEW"),
+                "created_at": _utc_now(),
+            }
+        )
+        self._record_manual_trade("EXTERNAL_LIMIT_SELL_PLACED", float(rounded_qty * price), order, pending)
+        return {"order": order, "pending": pending}
+
     def cancel_pending_order(self, order_id: int) -> dict[str, Any]:
         order = self.client.cancel_order(self.config.symbol, order_id)
-        pending = self.pending_orders()
-        for item in pending:
-            if int(item.get("order_id", 0) or 0) == order_id:
+        def mutate(pending: list[dict[str, Any]]) -> None:
+            for item in pending:
+                if int(item.get("order_id", 0) or 0) != order_id:
+                    continue
                 item["status"] = order.get("status", "CANCELED")
                 item["closed_at"] = _utc_now()
                 if item.get("lot_id"):
                     self.clear_lot_pending_sell(str(item["lot_id"]))
-        self.save_pending_orders(pending)
+
+        self.update_pending_orders(mutate)
         self._record_manual_trade("LIMIT_ORDER_CANCELED", 0, order, None)
         return {"order": order}
 
     def add_pending_order(self, order: dict[str, Any]) -> dict[str, Any]:
-        pending = self.pending_orders()
-        pending.append(order)
-        self.save_pending_orders(pending)
-        return order
+        def mutate(pending: list[dict[str, Any]]) -> dict[str, Any]:
+            pending.append(order)
+            return order
+
+        return self.update_pending_orders(mutate)
 
     def pending_orders(self) -> list[dict[str, Any]]:
-        if not self.pending_path.exists():
-            return []
-        try:
-            payload = json.loads(self.pending_path.read_text())
-        except json.JSONDecodeError:
-            return []
-        return payload.get("orders", [])
+        return self.pending_store.load()
 
     def save_pending_orders(self, orders: list[dict[str, Any]]) -> None:
-        self.pending_path.parent.mkdir(parents=True, exist_ok=True)
-        self.pending_path.write_text(json.dumps({"orders": orders}, indent=2, sort_keys=True) + "\n")
+        self.pending_store.save(orders)
+
+    def update_pending_orders(self, mutator: Any) -> Any:
+        return self.pending_store.update(mutator)
+
+    def reserve_lot_pending_sell(self, lot_id: str, limit_price: float) -> dict[str, Any] | None:
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any] | None:
+            for lot in lots:
+                if lot.get("id") != lot_id or lot.get("status") != "open":
+                    continue
+                if lot.get("pending_limit_sell_order_id"):
+                    return None
+                lot["pending_limit_sell_order_id"] = "RESERVING"
+                lot["pending_limit_sell_price"] = limit_price
+                return dict(lot)
+            return None
+
+        return self.ledger.update_lots(mutate)
 
     def mark_lot_pending_sell(self, lot_id: str, order_id: int, limit_price: float) -> None:
-        lots = self.ledger.lots()
-        for lot in lots:
-            if lot.get("id") == lot_id and lot.get("status") == "open":
-                lot["pending_limit_sell_order_id"] = order_id
-                lot["pending_limit_sell_price"] = limit_price
-        self.ledger.save(lots)
+        def mutate(lots: list[dict[str, Any]]) -> None:
+            for lot in lots:
+                if lot.get("id") == lot_id and lot.get("status") == "open":
+                    lot["pending_limit_sell_order_id"] = order_id
+                    lot["pending_limit_sell_price"] = limit_price
+
+        self.ledger.update_lots(mutate)
 
     def clear_lot_pending_sell(self, lot_id: str) -> None:
-        lots = self.ledger.lots()
-        for lot in lots:
-            if lot.get("id") == lot_id:
-                lot.pop("pending_limit_sell_order_id", None)
-                lot.pop("pending_limit_sell_price", None)
-        self.ledger.save(lots)
+        def mutate(lots: list[dict[str, Any]]) -> None:
+            for lot in lots:
+                if lot.get("id") == lot_id:
+                    lot.pop("pending_limit_sell_order_id", None)
+                    lot.pop("pending_limit_sell_price", None)
+
+        self.ledger.update_lots(mutate)
 
     def mark_lot_limit_sell_filled(self, lot_id: str, order_id: int, limit_price: float) -> None:
-        lots = self.ledger.lots()
-        for lot in lots:
-            if lot.get("id") == lot_id:
-                lot["limit_sell_filled"] = True
-                lot["limit_sell_order_id"] = order_id
-                lot["manual_sell_price"] = limit_price
-                lot.pop("pending_limit_sell_order_id", None)
-                lot.pop("pending_limit_sell_price", None)
-        self.ledger.save(lots)
+        def mutate(lots: list[dict[str, Any]]) -> None:
+            for lot in lots:
+                if lot.get("id") == lot_id:
+                    lot["limit_sell_filled"] = True
+                    lot["limit_sell_order_id"] = order_id
+                    lot["manual_sell_price"] = limit_price
+                    lot.pop("pending_limit_sell_order_id", None)
+                    lot.pop("pending_limit_sell_price", None)
+
+        self.ledger.update_lots(mutate)
 
     def sync_pending_orders(self) -> list[dict[str, Any]]:
-        pending = self.pending_orders()
-        changed = False
-        for item in pending:
-            if item.get("processed"):
-                continue
-            status = str(item.get("status", "NEW"))
-            try:
-                order = self.client.order(self.config.symbol, int(item["order_id"]))
-            except (BinanceAPIError, KeyError, ValueError):
-                continue
-            item["status"] = order.get("status", status)
-            item["updated_at"] = _utc_now()
-            executed_qty = float(order.get("executedQty", 0) or 0)
-            quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
-            if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and executed_qty > 0 and quote_qty > 0:
-                order = dict(order)
-                order["cummulativeQuoteQty"] = str(quote_qty)
-                if item.get("side") == "BUY":
-                    lot = self.ledger.add_buy(
-                        self.config.symbol,
-                        order,
-                        float(item.get("target_profit_pct", 0) or 0),
-                        self.config.trading_fee_rate,
-                        str(item.get("level", "manual-limit-buy")),
-                        None,
-                        bool(item.get("auto_sell", False)),
-                    )
-                    self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, order, lot)
-                elif item.get("side") == "SELL" and item.get("lot_id"):
-                    lot = self.ledger.close_lot(str(item["lot_id"]), order, self.config.trading_fee_rate)
-                    self.mark_lot_limit_sell_filled(
-                        str(item["lot_id"]),
-                        int(item.get("order_id", 0) or 0),
-                        float(item.get("limit_price", 0) or 0),
-                    )
-                    self._record_manual_trade("LIMIT_SELL_FILLED", quote_qty, order, lot)
-                item["processed"] = True
-                item["closed_at"] = _utc_now()
-            if item["status"] in {"CANCELED", "EXPIRED", "REJECTED"} and item.get("lot_id") and not item.get("processed"):
-                self.clear_lot_pending_sell(str(item["lot_id"]))
-                item["closed_at"] = _utc_now()
-            changed = True
-        if changed:
-            self.save_pending_orders(pending)
-        return pending
+        def mutate(pending: list[dict[str, Any]]) -> None:
+            for item in pending:
+                if item.get("processed"):
+                    continue
+                status = str(item.get("status", "NEW"))
+                try:
+                    order = self.client.order(self.config.symbol, int(item["order_id"]))
+                except (BinanceAPIError, KeyError, ValueError):
+                    continue
+                item["status"] = order.get("status", status)
+                item["updated_at"] = _utc_now()
+                executed_qty = float(order.get("executedQty", 0) or 0)
+                quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
+                if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and executed_qty > 0 and quote_qty > 0:
+                    order = dict(order)
+                    order["cummulativeQuoteQty"] = str(quote_qty)
+                    if item.get("side") == "BUY":
+                        lot = self.ledger.add_buy(
+                            self.config.symbol,
+                            order,
+                            float(item.get("target_profit_pct", 0) or 0),
+                            self.config.trading_fee_rate,
+                            str(item.get("level", "manual-limit-buy")),
+                            None,
+                            bool(item.get("auto_sell", False)),
+                        )
+                        self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, order, lot)
+                    elif item.get("side") == "SELL":
+                        if item.get("lot_id"):
+                            lot = self.ledger.close_lot(str(item["lot_id"]), order, self.config.trading_fee_rate)
+                            self.mark_lot_limit_sell_filled(
+                                str(item["lot_id"]),
+                                int(item.get("order_id", 0) or 0),
+                                float(item.get("limit_price", 0) or 0),
+                            )
+                            self._record_manual_trade("LIMIT_SELL_FILLED", quote_qty, order, lot)
+                        else:
+                            self._record_manual_trade("EXTERNAL_LIMIT_SELL_FILLED", quote_qty, order, item)
+                    item["processed"] = True
+                    item["closed_at"] = _utc_now()
+                if item["status"] in {"CANCELED", "EXPIRED", "REJECTED"} and item.get("lot_id") and not item.get("processed"):
+                    self.clear_lot_pending_sell(str(item["lot_id"]))
+                    item["closed_at"] = _utc_now()
+
+        return self.update_pending_orders(lambda pending: (mutate(pending), pending)[1])
 
     def external_close_lot(self, lot_id: str, sell_price: float, quantity: float | None) -> dict[str, Any]:
         lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
@@ -1859,6 +1937,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/manual/auto-sell",
                 "/api/manual/limit-buy",
                 "/api/manual/limit-sell",
+                "/api/manual/external-limit-sell",
                 "/api/manual/cancel-order",
                 "/api/manual/external-close",
             }:
@@ -1918,6 +1997,14 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 try:
                     result = dashboard.manual_limit_sell(
                         str(payload.get("lot_id", "")),
+                        float(payload.get("limit_price", 0) or 0),
+                    )
+                except (BinanceAPIError, ValueError) as exc:
+                    result = {"error": str(exc)}
+            elif path == "/api/manual/external-limit-sell":
+                try:
+                    result = dashboard.manual_external_limit_sell(
+                        float(payload.get("quantity", 0) or 0),
                         float(payload.get("limit_price", 0) or 0),
                     )
                 except (BinanceAPIError, ValueError) as exc:

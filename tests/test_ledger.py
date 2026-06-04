@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from binance_testnet_agent.ledger import PositionLedger
@@ -142,6 +143,15 @@ class PositionLedgerFeeTest(unittest.TestCase):
             self.assertAlmostEqual(lots["grid"]["target_price"], 101.2)
             self.assertAlmostEqual(lots["swing"]["target_price"], 110)
             self.assertAlmostEqual(lots["pending"]["target_price"], 101)
+
+    def test_legacy_json_is_migrated_to_sqlite_store(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "lots.json"
+            path.write_text(json.dumps({"lots": [{"id": "legacy", "status": "open", "remaining_quantity": 0.01}]}))
+            ledger = PositionLedger(path)
+
+            self.assertEqual(ledger.lots()[0]["id"], "legacy")
+            self.assertTrue(path.with_suffix(".sqlite3").exists())
 
 
 if __name__ == "__main__":

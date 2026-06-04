@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.7 - 2026-06-04
+
+- Added an external-position limit sell action for users who hold BTC in the account but do not have a matching open lot in the script ledger.
+- Improved the empty open-lot table message and the batch limit-sell error so users understand when a sell must be tied to a ledger lot.
+- External limit sell fills are now recorded without trying to close a nonexistent ledger lot.
+- Increased the recent live order page size from 10 to 12 and clarified the empty open-lot message when external limit sell orders are active.
+- Moved open lots and pending limit orders from JSON files to SQLite stores, with automatic migration from legacy JSON files.
+
 ## v0.2.6 - 2026-06-04
 
 - Added live trend guard using 24h and 7d moving averages; ordinary grid buys pause when price is below both averages and the 24h average is falling.
