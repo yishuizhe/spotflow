@@ -22,6 +22,8 @@ class SwingStrategyTest(unittest.TestCase):
         self.assertAlmostEqual(band.buy_price, 73000 * (1 - 0.012))
         self.assertAlmostEqual(band.sell_price, 73000 * (1 + 0.012))
         self.assertAlmostEqual(band.allocation_quote, 30)
+        self.assertAlmostEqual(band.min_order_quote, 10)
+        self.assertAlmostEqual(band.max_order_quote, 15)
 
     def test_buy_uses_full_swing_budget_when_price_reaches_buy_band(self) -> None:
         strategy = SwingStrategy(
