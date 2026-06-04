@@ -124,36 +124,38 @@ HTML = """<!doctype html>
       --accent: #0ea5e9;
       --accent-2: #10b981;
       --button: #0f172a;
-      --good: #059669;
-      --bad: #e11d48;
+      --good: #e11d48;
+      --bad: #059669;
+      --switch-on: #059669;
+      --switch-off: #e11d48;
       --warn: #b7791f;
       --shadow: 0 18px 42px rgba(15, 23, 42, .08);
       --page-art: linear-gradient(150deg, rgba(14,165,233,.11), rgba(255,255,255,.58) 42%, rgba(16,185,129,.10));
     }
     body[data-theme="night"] {
       color-scheme: dark;
-      --bg: #080d14; --panel: rgba(15, 23, 42, .94); --panel-strong: #111827; --text: #e5eef8; --muted: #8fa3b8; --line: #253449; --line-soft: #1e293b; --accent: #f0b90b; --accent-2: #22c55e; --button: #f0b90b; --good: #22c55e; --bad: #ef4444; --warn: #f59e0b; --shadow: 0 22px 52px rgba(0, 0, 0, .28); --page-art: radial-gradient(circle at 12% 16%, rgba(240,185,11,.16), transparent 28%), radial-gradient(circle at 86% 12%, rgba(34,197,94,.12), transparent 26%), linear-gradient(150deg, #08111f, #0f172a 55%, #061413);
+      --bg: #080d14; --panel: rgba(15, 23, 42, .94); --panel-strong: #111827; --text: #e5eef8; --muted: #8fa3b8; --line: #253449; --line-soft: #1e293b; --accent: #f0b90b; --accent-2: #22c55e; --button: #f0b90b; --good: #ef4444; --bad: #22c55e; --switch-on: #22c55e; --switch-off: #ef4444; --warn: #f59e0b; --shadow: 0 22px 52px rgba(0, 0, 0, .28); --page-art: radial-gradient(circle at 12% 16%, rgba(240,185,11,.16), transparent 28%), radial-gradient(circle at 86% 12%, rgba(34,197,94,.12), transparent 26%), linear-gradient(150deg, #08111f, #0f172a 55%, #061413);
     }
     body[data-theme="rift"] {
-      --bg: #07131f; --panel: rgba(9, 22, 36, .92); --panel-strong: #0d2035; --text: #e7f8ff; --muted: #9bb8c9; --line: #1f4b64; --line-soft: #183247; --accent: #38bdf8; --accent-2: #c084fc; --button: #155e75; --good: #34d399; --bad: #fb7185; --warn: #facc15; --shadow: 0 24px 58px rgba(2, 6, 23, .32); --page-art: radial-gradient(circle at 20% 10%, rgba(56,189,248,.22), transparent 24%), radial-gradient(circle at 82% 22%, rgba(192,132,252,.20), transparent 22%), linear-gradient(140deg, #061826, #101534 62%, #061c1b);
+      --bg: #07131f; --panel: rgba(9, 22, 36, .92); --panel-strong: #0d2035; --text: #e7f8ff; --muted: #9bb8c9; --line: #1f4b64; --line-soft: #183247; --accent: #38bdf8; --accent-2: #c084fc; --button: #155e75; --good: #fb7185; --bad: #34d399; --switch-on: #34d399; --switch-off: #fb7185; --warn: #facc15; --shadow: 0 24px 58px rgba(2, 6, 23, .32); --page-art: radial-gradient(circle at 20% 10%, rgba(56,189,248,.22), transparent 24%), radial-gradient(circle at 82% 22%, rgba(192,132,252,.20), transparent 22%), linear-gradient(140deg, #061826, #101534 62%, #061c1b);
     }
     body[data-theme="anime"] {
-      --bg: #fff4f8; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #2a2433; --muted: #7a6878; --line: #f2c7d7; --line-soft: #f7dfea; --accent: #ec4899; --accent-2: #06b6d4; --button: #be185d; --good: #0f9f80; --bad: #e11d48; --warn: #d97706; --shadow: 0 20px 48px rgba(190, 24, 93, .12); --page-art: radial-gradient(circle at 10% 18%, rgba(236,72,153,.18), transparent 24%), radial-gradient(circle at 88% 18%, rgba(6,182,212,.16), transparent 24%), linear-gradient(145deg, #fff4f8, #f0fdff 68%, #fff7ed);
+      --bg: #fff4f8; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #2a2433; --muted: #7a6878; --line: #f2c7d7; --line-soft: #f7dfea; --accent: #ec4899; --accent-2: #06b6d4; --button: #be185d; --good: #e11d48; --bad: #0f9f80; --switch-on: #0f9f80; --switch-off: #e11d48; --warn: #d97706; --shadow: 0 20px 48px rgba(190, 24, 93, .12); --page-art: radial-gradient(circle at 10% 18%, rgba(236,72,153,.18), transparent 24%), radial-gradient(circle at 88% 18%, rgba(6,182,212,.16), transparent 24%), linear-gradient(145deg, #fff4f8, #f0fdff 68%, #fff7ed);
     }
     body[data-theme="stage"] {
-      --bg: #fff8e8; --panel: rgba(255,252,244,.95); --panel-strong: #fffdf8; --text: #312516; --muted: #7a6850; --line: #ead7b5; --line-soft: #f2e4ca; --accent: #f59e0b; --accent-2: #10b981; --button: #7c2d12; --good: #15803d; --bad: #dc2626; --warn: #b45309; --shadow: 0 20px 46px rgba(124, 45, 18, .12); --page-art: radial-gradient(circle at 15% 15%, rgba(245,158,11,.20), transparent 24%), radial-gradient(circle at 85% 12%, rgba(16,185,129,.14), transparent 22%), linear-gradient(145deg, #fff8e8, #fff1f2 60%, #ecfeff);
+      --bg: #fff8e8; --panel: rgba(255,252,244,.95); --panel-strong: #fffdf8; --text: #312516; --muted: #7a6850; --line: #ead7b5; --line-soft: #f2e4ca; --accent: #f59e0b; --accent-2: #10b981; --button: #7c2d12; --good: #dc2626; --bad: #15803d; --switch-on: #15803d; --switch-off: #dc2626; --warn: #b45309; --shadow: 0 20px 46px rgba(124, 45, 18, .12); --page-art: radial-gradient(circle at 15% 15%, rgba(245,158,11,.20), transparent 24%), radial-gradient(circle at 85% 12%, rgba(16,185,129,.14), transparent 22%), linear-gradient(145deg, #fff8e8, #fff1f2 60%, #ecfeff);
     }
     body[data-theme="forest"] {
-      --bg: #f3fbf5; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #17251f; --muted: #62776d; --line: #cfe2d6; --line-soft: #e3efe7; --accent: #16a34a; --accent-2: #0ea5e9; --button: #14532d; --good: #15803d; --bad: #dc2626; --warn: #a16207; --shadow: 0 20px 48px rgba(20,83,45,.10); --page-art: radial-gradient(circle at 10% 18%, rgba(22,163,74,.16), transparent 24%), radial-gradient(circle at 88% 12%, rgba(14,165,233,.12), transparent 22%), linear-gradient(145deg, #f3fbf5, #eefdf8 64%, #f8fafc);
+      --bg: #f3fbf5; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #17251f; --muted: #62776d; --line: #cfe2d6; --line-soft: #e3efe7; --accent: #16a34a; --accent-2: #0ea5e9; --button: #14532d; --good: #dc2626; --bad: #15803d; --switch-on: #15803d; --switch-off: #dc2626; --warn: #a16207; --shadow: 0 20px 48px rgba(20,83,45,.10); --page-art: radial-gradient(circle at 10% 18%, rgba(22,163,74,.16), transparent 24%), radial-gradient(circle at 88% 12%, rgba(14,165,233,.12), transparent 22%), linear-gradient(145deg, #f3fbf5, #eefdf8 64%, #f8fafc);
     }
     body[data-theme="ocean"] {
-      --bg: #edf7ff; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #162231; --muted: #607184; --line: #c6dbef; --line-soft: #dcebf7; --accent: #0284c7; --accent-2: #14b8a6; --button: #075985; --good: #0f9f80; --bad: #e11d48; --warn: #b45309; --shadow: 0 20px 48px rgba(2,132,199,.12); --page-art: radial-gradient(circle at 16% 12%, rgba(2,132,199,.18), transparent 25%), radial-gradient(circle at 86% 22%, rgba(20,184,166,.16), transparent 24%), linear-gradient(145deg, #edf7ff, #f0fdfa 68%, #ffffff);
+      --bg: #edf7ff; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #162231; --muted: #607184; --line: #c6dbef; --line-soft: #dcebf7; --accent: #0284c7; --accent-2: #14b8a6; --button: #075985; --good: #e11d48; --bad: #0f9f80; --switch-on: #0f9f80; --switch-off: #e11d48; --warn: #b45309; --shadow: 0 20px 48px rgba(2,132,199,.12); --page-art: radial-gradient(circle at 16% 12%, rgba(2,132,199,.18), transparent 25%), radial-gradient(circle at 86% 22%, rgba(20,184,166,.16), transparent 24%), linear-gradient(145deg, #edf7ff, #f0fdfa 68%, #ffffff);
     }
     body[data-theme="sunset"] {
-      --bg: #fff7ed; --panel: rgba(255,255,255,.95); --panel-strong: #ffffff; --text: #2f2218; --muted: #806b5b; --line: #efd4bd; --line-soft: #f6e5d5; --accent: #ea580c; --accent-2: #db2777; --button: #9a3412; --good: #15803d; --bad: #dc2626; --warn: #b45309; --shadow: 0 20px 48px rgba(154,52,18,.12); --page-art: radial-gradient(circle at 12% 14%, rgba(234,88,12,.18), transparent 24%), radial-gradient(circle at 88% 15%, rgba(219,39,119,.14), transparent 22%), linear-gradient(145deg, #fff7ed, #fff1f2 66%, #f0f9ff);
+      --bg: #fff7ed; --panel: rgba(255,255,255,.95); --panel-strong: #ffffff; --text: #2f2218; --muted: #806b5b; --line: #efd4bd; --line-soft: #f6e5d5; --accent: #ea580c; --accent-2: #db2777; --button: #9a3412; --good: #dc2626; --bad: #15803d; --switch-on: #15803d; --switch-off: #dc2626; --warn: #b45309; --shadow: 0 20px 48px rgba(154,52,18,.12); --page-art: radial-gradient(circle at 12% 14%, rgba(234,88,12,.18), transparent 24%), radial-gradient(circle at 88% 15%, rgba(219,39,119,.14), transparent 22%), linear-gradient(145deg, #fff7ed, #fff1f2 66%, #f0f9ff);
     }
     body[data-theme="mono"] {
-      --bg: #f6f7f9; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #171b22; --muted: #657080; --line: #d5dbe3; --line-soft: #e7ebf0; --accent: #475569; --accent-2: #0891b2; --button: #111827; --good: #047857; --bad: #be123c; --warn: #a16207; --shadow: 0 18px 42px rgba(17,24,39,.09); --page-art: linear-gradient(145deg, #f6f7f9, #eef4f7 72%, #ffffff);
+      --bg: #f6f7f9; --panel: rgba(255,255,255,.94); --panel-strong: #ffffff; --text: #171b22; --muted: #657080; --line: #d5dbe3; --line-soft: #e7ebf0; --accent: #475569; --accent-2: #0891b2; --button: #111827; --good: #be123c; --bad: #047857; --switch-on: #047857; --switch-off: #be123c; --warn: #a16207; --shadow: 0 18px 42px rgba(17,24,39,.09); --page-art: linear-gradient(145deg, #f6f7f9, #eef4f7 72%, #ffffff);
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; transition: background .28s ease, color .28s ease; }
@@ -191,8 +193,8 @@ HTML = """<!doctype html>
     canvas { width: 100%; height: calc(100% - 70px); display: block; cursor: crosshair; }
     .action-button { border: 0; border-radius: 8px; min-height: 38px; padding: 0 14px; background: var(--button); color: #fff; font-weight: 800; cursor: pointer; }
     body[data-theme="night"] .action-button { color: #111827; }
-    .action-button.off { background: var(--bad); color: #fff; }
-    .action-button.on { background: var(--good); color: #fff; }
+    .action-button.off { background: var(--switch-off); color: #fff; }
+    .action-button.on { background: var(--switch-on); color: #fff; }
     .tooltip { position: absolute; z-index: 5; pointer-events: none; display: none; min-width: 188px; padding: 10px 11px; border-radius: 8px; background: rgba(15, 23, 42, .94); color: #f8fafc; font-size: 12px; box-shadow: 0 12px 24px rgba(15,23,42,.22); line-height: 1.5; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
     th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line-soft); font-size: 14px; vertical-align: top; }
@@ -251,13 +253,17 @@ HTML = """<!doctype html>
     .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
     .theme-chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
     .theme-toggle { width: 100%; margin-top: 8px; }
-    .mascot { position: fixed; left: 18px; bottom: 18px; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
+    .mascot { position: fixed; left: 28px; bottom: 0; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
     .mascot.hidden { display: none; }
     .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-    .eye { position: absolute; top: 43px; width: 8px; height: 8px; border-radius: 50%; background: #0f172a; box-shadow: 0 0 0 2px rgba(255,255,255,.55); transition: transform .08s linear; }
-    .eye.left { left: 43px; } .eye.right { left: 61px; }
-    .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; }
+    .mascot-eye { position: absolute; top: 40px; width: 14px; height: 18px; border-radius: 54% 54% 50% 50%; background: radial-gradient(circle at 40% 34%, #fff 0 16%, #e9fbff 17% 62%, #a7edf2 100%); border: 1px solid rgba(16, 56, 70, .22); overflow: hidden; box-shadow: inset 0 -2px 4px rgba(3, 105, 161, .12), 0 1px 1px rgba(255,255,255,.55); }
+    .mascot-eye.left { left: 40px; transform: rotate(7deg); }
+    .mascot-eye.right { left: 59px; transform: rotate(-6deg); }
+    .eye-iris { position: absolute; left: 3px; top: 4px; width: 8px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 62% 36%, #ffffff 0 12%, #6ee7f5 13% 40%, #0f766e 41% 72%, #062f36 73% 100%); transition: transform .08s linear; }
+    .eye-iris::after { content: ""; position: absolute; left: 3px; top: 3px; width: 3px; height: 4px; border-radius: 50%; background: rgba(2, 8, 23, .82); }
+    .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
+    .mascot.speaking .mascot-bubble { opacity: 1; transform: translateY(0); }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
     @media (max-width: 980px) {
       main { width: 100%; overflow-x: hidden; }
@@ -311,10 +317,13 @@ HTML = """<!doctype html>
       .floating-dock { right: 12px; bottom: 12px; }
       .dock-fab { width: 48px; height: 48px; font-size: 12px; }
       .theme-drawer { width: min(300px, calc(100vw - 24px)); }
-      .mascot { left: 8px; bottom: 8px; gap: 6px; }
+      .mascot { left: 14px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 70px; height: 105px; }
-      .eye { top: 27px; width: 5px; height: 5px; box-shadow: 0 0 0 1px rgba(255,255,255,.55); }
-      .eye.left { left: 27px; } .eye.right { left: 38px; }
+      .mascot-eye { top: 25px; width: 9px; height: 11px; }
+      .mascot-eye.left { left: 25px; }
+      .mascot-eye.right { left: 37px; }
+      .eye-iris { left: 2px; top: 2px; width: 5px; height: 7px; }
+      .eye-iris::after { left: 2px; top: 2px; width: 2px; height: 3px; }
       .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
     }
   </style>
@@ -457,7 +466,15 @@ HTML = """<!doctype html>
       </div>
     </section>
     <section class="panel" style="margin-top:14px">
-      <div class="label">未平批次</div>
+      <div class="panel-head">
+        <div class="label">未平批次</div>
+        <div class="button-stack">
+          <button class="secondary-button" id="bulkAutoOn">一键开启自动卖</button>
+          <button class="secondary-button" id="bulkAutoOff">一键关闭自动卖</button>
+          <button class="secondary-button" id="bulkMarketSell">一键市价卖</button>
+          <button class="secondary-button" id="bulkLimitSell">一键限价卖</button>
+        </div>
+      </div>
       <table>
         <thead><tr><th>批次</th><th>状态</th><th>成本价</th><th>预计卖价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>浮盈亏</th><th>操作</th></tr></thead>
         <tbody id="openLots"><tr><td colspan="9" class="muted">暂无未平批次</td></tr></tbody>
@@ -552,7 +569,8 @@ HTML = """<!doctype html>
   <aside class="mascot" id="mascot">
     <div class="mascot-figure">
       <img src="/static/mascot-ai.png" alt="看板助手">
-      <span class="eye left"></span><span class="eye right"></span>
+      <span class="mascot-eye left"><span class="eye-iris"></span></span>
+      <span class="mascot-eye right"><span class="eye-iris"></span></span>
     </div>
     <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
   </aside>
@@ -567,12 +585,15 @@ HTML = """<!doctype html>
     let chartLayout = null;
     let latestTrades = [];
     let latestClosedLots = [];
+    let latestOpenLots = [];
     let manualBuyAutoSellDefault = false;
     let tradePage = 0;
     let closedPage = 0;
     let settingsLoaded = false;
     let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
     let loginValidated = false;
+    let mascotBubbleTimer = null;
+    let mascotMarketSaidAt = 0;
     const tradePageSize = 9;
     const closedPageSize = 8;
     const canvas = document.getElementById('chart');
@@ -827,10 +848,20 @@ HTML = """<!doctype html>
       document.getElementById('mascotToggle').textContent = visible ? '隐藏看板助手' : '显示看板助手';
     }
     function mascotSay(text) {
+      const mascot = document.getElementById('mascot');
       const bubble = document.getElementById('mascotBubble');
       if (bubble) bubble.textContent = text;
+      if (mascot) mascot.classList.add('speaking');
+      if (mascotBubbleTimer) clearTimeout(mascotBubbleTimer);
+      mascotBubbleTimer = setTimeout(() => {
+        const node = document.getElementById('mascot');
+        if (node) node.classList.remove('speaking');
+      }, 8000);
     }
     function updateMascotMarket(data) {
+      const now = Date.now();
+      if (now - mascotMarketSaidAt < 120000) return;
+      mascotMarketSaidAt = now;
       const trend = data.trend_guard || {};
       const pnl = Number(data.pnl_quote || 0);
       const price = fmt(data.price || 0, 2);
@@ -839,6 +870,7 @@ HTML = """<!doctype html>
       else mascotSay(`BTC 现在约 ${price}，账户相对基准偏弱。先看现金、浮亏和趋势保护，不要被短线晃到。`);
     }
     function renderOpenLots(lots, currentPrice, pendingOrders) {
+      latestOpenLots = lots || [];
       const tbody = document.getElementById('openLots');
       tbody.innerHTML = '';
       if (!lots.length) {
@@ -859,10 +891,8 @@ HTML = """<!doctype html>
         const fee = Number(lot.fee_quote || lot.buy_fee_quote || 0);
         const status = lot.pending_limit_sell_order_id ? '限价卖出中' : (lot.auto_sell === false ? '手动持仓' : '自动卖出');
         const manualPrice = lot.pending_limit_sell_price ? fmt(lot.pending_limit_sell_price, 8) : '--';
-        const levelText = String(lot.level || '');
-        const manualControlLot = levelText.startsWith('manual-') || levelText.startsWith('swing-');
-        const manualSell = manualControlLot ? `<button class="secondary-button" data-manual-sell="${lot.id}">市价卖出</button>` : '';
-        const autoToggle = manualControlLot ? `<button class="secondary-button" data-auto-sell="${lot.id}" data-auto-sell-enabled="${lot.auto_sell === false ? 'true' : 'false'}">${lot.auto_sell === false ? '开启自动卖' : '取消自动卖'}</button>` : '';
+        const manualSell = `<button class="secondary-button" data-manual-sell="${lot.id}">市价卖出</button>`;
+        const autoToggle = `<button class="secondary-button" data-auto-sell="${lot.id}" data-auto-sell-enabled="${lot.auto_sell === false ? 'true' : 'false'}">${lot.auto_sell === false ? '开启自动卖' : '取消自动卖'}</button>`;
         const limitSell = `<button class="secondary-button" data-limit-sell="${lot.id}" data-target-price="${target}">限价卖出</button>`;
         const externalClose = `<button class="secondary-button" data-external-close="${lot.id}">外部已卖</button>`;
         const action = `<div style="display:flex;gap:6px;flex-wrap:wrap">${manualSell}${autoToggle}${limitSell}${externalClose}</div>`;
@@ -1157,6 +1187,10 @@ HTML = """<!doctype html>
     document.getElementById('tradeNext').addEventListener('click', () => { tradePage += 1; renderTrades(); });
     document.getElementById('closedPrev').addEventListener('click', () => { closedPage = Math.max(0, closedPage - 1); renderClosedLots(); });
     document.getElementById('closedNext').addEventListener('click', () => { closedPage += 1; renderClosedLots(); });
+    document.getElementById('bulkAutoOn').addEventListener('click', () => bulkAutoSell(true));
+    document.getElementById('bulkAutoOff').addEventListener('click', () => bulkAutoSell(false));
+    document.getElementById('bulkMarketSell').addEventListener('click', () => bulkMarketSell());
+    document.getElementById('bulkLimitSell').addEventListener('click', () => bulkLimitSell());
     document.getElementById('runBacktest').addEventListener('click', async () => {
       document.getElementById('backtestStatus').textContent = '回测运行中...';
       try {
@@ -1229,7 +1263,7 @@ HTML = """<!doctype html>
     async function manualSell(lotId) {
       const password = window.prompt('输入交易开关密码以确认手动卖出');
       if (!password) return;
-      const confirmed = window.confirm('确认市价卖出这个手动批次，并关闭账本记录？');
+      const confirmed = window.confirm('确认市价卖出这个未平批次，并关闭账本记录？这是实盘下单，无法撤回。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/sell', { lot_id: lotId }, password); }
       catch (err) { window.alert(err.message || err); return; }
@@ -1238,7 +1272,7 @@ HTML = """<!doctype html>
     async function setLotAutoSell(lotId, enabled) {
       const password = window.prompt(enabled ? '输入交易开关密码以开启这个批次的自动卖出' : '输入交易开关密码以取消这个批次的自动卖出');
       if (!password) return;
-      const confirmed = window.confirm(enabled ? '确认让这个人工买入批次到目标价后由脚本自动卖出？' : '确认取消这个人工买入批次的自动卖出？取消后脚本不会自动卖出它。');
+      const confirmed = window.confirm(enabled ? '确认让这个批次到目标价后由脚本自动卖出？' : '确认取消这个批次的自动卖出？取消后脚本不会自动卖出它。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/auto-sell', { lot_id: lotId, auto_sell: enabled }, password); }
       catch (err) { window.alert(err.message || err); return; }
@@ -1253,6 +1287,45 @@ HTML = """<!doctype html>
       if (!confirmed) return;
       try { await apiGet('/api/manual/limit-sell', { lot_id: lotId, limit_price: limitPrice }, password); }
       catch (err) { window.alert(err.message || err); return; }
+      refresh();
+    }
+    async function bulkAutoSell(enabled) {
+      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
+      const password = window.prompt(enabled ? '输入交易开关密码以一键开启所有未平批次自动卖' : '输入交易开关密码以一键关闭所有未平批次自动卖');
+      if (!password) return;
+      const confirmed = window.confirm(`${enabled ? '开启' : '关闭'} ${latestOpenLots.length} 个未平批次的自动卖？`);
+      if (!confirmed) return;
+      for (const lot of latestOpenLots) {
+        const result = await apiGet('/api/manual/auto-sell', { lot_id: lot.id, auto_sell: enabled }, password);
+        if (result.error) return window.alert(result.error);
+      }
+      refresh();
+    }
+    async function bulkMarketSell() {
+      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
+      const password = window.prompt('输入交易开关密码以一键市价卖出所有未平批次');
+      if (!password) return;
+      const confirmed = window.confirm(`确认按市价卖出 ${latestOpenLots.length} 个未平批次？这是实盘下单，无法撤回。`);
+      if (!confirmed) return;
+      for (const lot of latestOpenLots) {
+        const result = await apiGet('/api/manual/sell', { lot_id: lot.id }, password);
+        if (result.error) return window.alert(result.error);
+      }
+      refresh();
+    }
+    async function bulkLimitSell() {
+      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
+      const password = window.prompt('输入交易开关密码以一键限价卖出所有未平批次');
+      if (!password) return;
+      const confirmed = window.confirm(`确认按每个批次的预计卖价分别挂 ${latestOpenLots.length} 个限价卖单？`);
+      if (!confirmed) return;
+      for (const lot of latestOpenLots) {
+        if (lot.pending_limit_sell_order_id) continue;
+        const price = Number(lot.effective_target_price || lot.target_price || 0);
+        if (!price) continue;
+        const result = await apiGet('/api/manual/limit-sell', { lot_id: lot.id, limit_price: price }, password);
+        if (result.error) return window.alert(result.error);
+      }
       refresh();
     }
     async function cancelPendingOrder(orderId) {
@@ -1329,9 +1402,12 @@ HTML = """<!doctype html>
       setMascotVisible(hidden);
     });
     document.addEventListener('mousemove', event => {
-      const dx = Math.max(-4, Math.min(4, (event.clientX / Math.max(window.innerWidth, 1) - .5) * 8));
-      const dy = Math.max(-3, Math.min(3, (event.clientY / Math.max(window.innerHeight, 1) - .5) * 6));
-      document.querySelectorAll('.eye').forEach(eye => { eye.style.transform = `translate(${dx}px, ${dy}px)`; });
+      const mascot = document.getElementById('mascot');
+      if (!mascot || mascot.classList.contains('hidden')) return;
+      const face = mascot.querySelector('.mascot-figure').getBoundingClientRect();
+      const dx = Math.max(-3, Math.min(3, (event.clientX - (face.left + face.width / 2)) / Math.max(face.width, 1) * 8));
+      const dy = Math.max(-2, Math.min(2, (event.clientY - (face.top + face.height * .28)) / Math.max(face.height, 1) * 7));
+      mascot.querySelectorAll('.eye-iris').forEach(iris => { iris.style.transform = `translate(${dx}px, ${dy}px)`; });
     });
     document.addEventListener('mouseover', event => {
       const target = event.target.closest('[data-help], button, th, .label, .panel-title, .summary-card span, .status-item .k');
@@ -1938,12 +2014,10 @@ class Dashboard:
     def manual_sell(self, lot_id: str) -> dict[str, Any]:
         lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
         if not lot:
-            return {"error": "manual lot not found"}
-        if not _manual_control_lot(lot):
-            return {"error": "only manual or swing lots can be sold from this action"}
+            return {"error": "open lot not found"}
         quantity = Decimal(str(lot.get("remaining_quantity", 0) or 0))
         if quantity <= 0:
-            return {"error": "manual lot has no remaining quantity"}
+            return {"error": "lot has no remaining quantity"}
         filters = self.client.symbol_filters(self.config.symbol)
         rounded_qty = self.client.round_quantity(quantity, filters)
         if rounded_qty < filters.min_qty:
@@ -1960,8 +2034,6 @@ class Dashboard:
         lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
         if not lot:
             return {"error": "open lot not found"}
-        if not _manual_control_lot(lot):
-            return {"error": "only manual or swing lots can change auto sell"}
         updated = self.ledger.set_auto_sell(lot_id, enabled)
         if not updated:
             return {"error": "failed to update auto sell"}

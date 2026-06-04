@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.1 - 2026-06-05
+
+- Replaced the awkward black mascot eye dots with a complete animated eye layer whose irises follow the mouse.
+- Anchored the mascot to the bottom-left edge and made the speech bubble auto-hide after a short idle period.
+- Added market sell, auto-sell toggle, limit sell, and external-close controls to every open lot.
+- Added bulk open-lot controls for enabling/disabling auto-sell, market selling, and placing target-price limit sells.
+- Removed the manual/swing-only restriction for dashboard market sell and auto-sell toggles.
+- Switched profit/up colors to red and loss/down colors to green for Chinese market convention, while keeping trade enable/disable button colors semantic.
+
 ## v1.0.0 - 2026-06-05
 
 - Promoted the project to `v1.0.0` as the first full learning/stable release for the live dashboard and strategy tool.
