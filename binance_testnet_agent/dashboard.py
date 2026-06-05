@@ -536,9 +536,13 @@ HTML = """<!doctype html>
     </div>
   </div>
   <div class="modal open" id="loginModal">
-    <div class="modal-panel" style="width:min(420px,100%)">
+      <div class="modal-panel" style="width:min(420px,100%)">
       <div class="modal-head"><h2>登录看板</h2></div>
       <div class="field"><label>页面密码</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;color:var(--text);font-size:13px;line-height:1.45">
+        <input type="checkbox" id="loginRemember" style="width:auto;margin-top:2px;accent-color:var(--accent)">
+        <span>记住我，24 小时内免登录<br><span class="muted">密码会保存在当前浏览器中，仅建议在私人设备使用。</span></span>
+      </label>
       <div class="muted" id="loginStatus" style="margin-top:12px">请输入页面密码后查看实盘看板。</div>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
@@ -590,7 +594,28 @@ HTML = """<!doctype html>
     let tradePage = 0;
     let closedPage = 0;
     let settingsLoaded = false;
-    let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
+    const loginCacheKey = 'dashboardPasswordCache';
+    function readCachedLogin() {
+      const cached = localStorage.getItem(loginCacheKey);
+      if (cached) {
+        try {
+          const data = JSON.parse(cached);
+          if (data.password && Number(data.expiry) > Date.now()) {
+            return { password: data.password, remembered: true };
+          }
+        } catch (err) {}
+        localStorage.removeItem(loginCacheKey);
+      }
+      return { password: sessionStorage.getItem('dashboardPassword') || '', remembered: false };
+    }
+    function clearRememberedLogin() {
+      localStorage.removeItem(loginCacheKey);
+      sessionStorage.removeItem('dashboardPassword');
+      const remember = document.getElementById('loginRemember');
+      if (remember) remember.checked = false;
+    }
+    const cachedLogin = readCachedLogin();
+    let dashboardPassword = cachedLogin.password;
     let loginValidated = false;
     let mascotBubbleTimer = null;
     let mascotMarketSaidAt = 0;
@@ -600,6 +625,10 @@ HTML = """<!doctype html>
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
     const chartTip = document.getElementById('chartTip');
+    document.getElementById('loginRemember').checked = cachedLogin.remembered;
+    if (cachedLogin.remembered) {
+      document.getElementById('loginStatus').textContent = '正在验证已记住的登录信息...';
+    }
     function authHeaders(tradingPassword, payload) {
       const headers = { 'X-Dashboard-Password': dashboardPassword };
       if (tradingPassword) headers['X-Trading-Password'] = tradingPassword;
@@ -655,8 +684,12 @@ HTML = """<!doctype html>
         document.getElementById('loginModal').classList.remove('open');
         return true;
       } catch (err) {
+        dashboardPassword = '';
+        loginValidated = false;
+        clearRememberedLogin();
         document.getElementById('loginModal').classList.add('open');
-        document.getElementById('loginStatus').textContent = dashboardPassword ? '密码不正确，请重新输入。' : '请输入页面密码后查看实盘看板。';
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginStatus').textContent = '登录信息已失效，请重新输入页面密码。';
         return false;
       }
     }
@@ -1155,9 +1188,20 @@ HTML = """<!doctype html>
     document.getElementById('loginButton').addEventListener('click', async () => {
       dashboardPassword = document.getElementById('loginPassword').value;
       if (!dashboardPassword) return;
-      sessionStorage.setItem('dashboardPassword', dashboardPassword);
+      const rememberLogin = document.getElementById('loginRemember').checked;
       loginValidated = false;
-      if (await requireLogin()) refresh();
+      if (await requireLogin()) {
+        sessionStorage.setItem('dashboardPassword', dashboardPassword);
+        if (rememberLogin) {
+          localStorage.setItem(loginCacheKey, JSON.stringify({
+            password: dashboardPassword,
+            expiry: Date.now() + 24 * 60 * 60 * 1000
+          }));
+        } else {
+          localStorage.removeItem(loginCacheKey);
+        }
+        refresh();
+      }
     });
     document.getElementById('loginPassword').addEventListener('keydown', event => {
       if (event.key === 'Enter') document.getElementById('loginButton').click();

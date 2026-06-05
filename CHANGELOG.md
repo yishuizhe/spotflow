@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.5 - 2026-06-05
+
+- Merged and hardened PR #1 by R0A1NG, adding an optional 24-hour remember-me login cache.
+- Clear expired, malformed, or server-rejected cached passwords automatically.
+- Write the persistent cache only after successful server validation and warn users to enable it only on private devices.
+
 ## v1.0.4 - 2026-06-05
 
 - Added a prominent top-of-page success/error toast for system settings updates.
