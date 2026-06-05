@@ -539,6 +539,7 @@ HTML = """<!doctype html>
     <div class="modal-panel" style="width:min(420px,100%)">
       <div class="modal-head"><h2>登录看板</h2></div>
       <div class="field"><label>页面密码</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+      <div class="field" style="margin-top:8px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400"><input type="checkbox" id="loginRemember" style="width:auto;accent-color:var(--accent)"> 记住我（1天内免登录）</label></div>
       <div class="muted" id="loginStatus" style="margin-top:12px">请输入页面密码后查看实盘看板。</div>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
@@ -590,8 +591,24 @@ HTML = """<!doctype html>
     let tradePage = 0;
     let closedPage = 0;
     let settingsLoaded = false;
-    let dashboardPassword = sessionStorage.getItem('dashboardPassword') || '';
+    function getCachedPassword() {
+      const cached = localStorage.getItem('dashboardPasswordCache');
+      if (cached) {
+        try {
+          const data = JSON.parse(cached);
+          if (data.password && data.expiry && Date.now() < data.expiry) {
+            return data.password;
+          }
+        } catch(e) {}
+        localStorage.removeItem('dashboardPasswordCache');
+      }
+      return sessionStorage.getItem('dashboardPassword') || '';
+    }
+    let dashboardPassword = getCachedPassword();
     let loginValidated = false;
+    if (dashboardPassword) {
+      document.getElementById('loginModal').classList.remove('open');
+    }
     let mascotBubbleTimer = null;
     let mascotMarketSaidAt = 0;
     let noticeTimer = null;
@@ -1155,6 +1172,15 @@ HTML = """<!doctype html>
     document.getElementById('loginButton').addEventListener('click', async () => {
       dashboardPassword = document.getElementById('loginPassword').value;
       if (!dashboardPassword) return;
+      const rememberMe = document.getElementById('loginRemember').checked;
+      if (rememberMe) {
+        localStorage.setItem('dashboardPasswordCache', JSON.stringify({
+          password: dashboardPassword,
+          expiry: Date.now() + 86400000
+        }));
+      } else {
+        localStorage.removeItem('dashboardPasswordCache');
+      }
       sessionStorage.setItem('dashboardPassword', dashboardPassword);
       loginValidated = false;
       if (await requireLogin()) refresh();
