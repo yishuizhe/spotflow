@@ -241,7 +241,7 @@ HTML = """<!doctype html>
     .settings-status { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 88%, transparent); color: var(--muted); font-size: 13px; line-height: 1.5; }
     .settings-status.success { border-color: color-mix(in srgb, var(--switch-on) 48%, var(--line)); background: color-mix(in srgb, var(--switch-on) 10%, var(--panel-strong)); color: var(--switch-on); font-weight: 800; }
     .settings-status.error { border-color: color-mix(in srgb, var(--switch-off) 48%, var(--line)); background: color-mix(in srgb, var(--switch-off) 10%, var(--panel-strong)); color: var(--switch-off); font-weight: 800; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+    .modal-actions { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; margin: 14px -18px 0; padding: 12px 18px; background: var(--panel-strong); border-top: 1px solid var(--line-soft); }
     .secondary-button { border: 1px solid var(--line); border-radius: 8px; min-height: 38px; padding: 0 13px; background: var(--panel-strong); color: var(--text); font-weight: 800; cursor: pointer; }
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
@@ -315,7 +315,7 @@ HTML = """<!doctype html>
       .secondary-button, .action-button { min-height: 40px; }
       .modal { padding: 12px; align-items: flex-start; }
       .modal-panel { max-height: calc(100vh - 24px); padding: 14px; }
-      .modal-actions { flex-direction: column-reverse; }
+      .modal-actions { flex-direction: column-reverse; margin: 14px -14px 0; padding: 12px 14px; }
       .modal-actions button { width: 100%; }
       .floating-dock { right: 12px; bottom: 12px; }
       .dock-fab { width: 48px; height: 48px; font-size: 12px; }
