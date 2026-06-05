@@ -178,6 +178,13 @@ HTML = """<!doctype html>
     .capital-value { font-size: 30px; font-weight: 800; margin-bottom: 10px; }
     .pnl-card .value { font-size: 26px; margin-bottom: 14px; }
     .control-panel { display: grid; align-content: start; gap: 14px; }
+    .strategy-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 14px; padding: 10px 16px; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 8px; font-size: 13px; }
+    .strategy-bar .strat-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .strategy-bar .strat-label { color: var(--muted); font-weight: 700; }
+    .strategy-bar .strat-value { color: var(--text); font-weight: 850; }
+    .strategy-bar .strat-sep { color: var(--line); user-select: none; }
+    .strategy-bar .strat-on { color: var(--switch-on); }
+    .strategy-bar .strat-off { color: var(--muted); }
     .control-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
     .control-row:last-child { padding-bottom: 0; border-bottom: 0; }
     .button-stack { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
@@ -323,6 +330,7 @@ HTML = """<!doctype html>
       .mascot { left: 14px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 70px; height: 105px; }
       .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
+      .strategy-bar { font-size: 12px; gap: 4px 10px; padding: 8px 12px; }
     }
   </style>
 </head>
@@ -377,6 +385,17 @@ HTML = """<!doctype html>
           </div>
         </div>
       </div>
+    </section>
+    <section class="strategy-bar" id="strategyBar">
+      <div class="strat-item"><span class="strat-label">止盈</span><span class="strat-value" id="stratTP">--</span></div>
+      <span class="strat-sep">|</span>
+      <div class="strat-item"><span class="strat-label">买入间距</span><span class="strat-value" id="stratGrid">--</span></div>
+      <span class="strat-sep">|</span>
+      <div class="strat-item"><span class="strat-label">分档</span><span class="strat-value" id="stratSizing">--</span></div>
+      <span class="strat-sep">|</span>
+      <div class="strat-item"><span class="strat-label">防守模式</span><span class="strat-value" id="stratDefensive">--</span></div>
+      <span class="strat-sep">|</span>
+      <div class="strat-item"><span class="strat-label">浮亏保护</span><span class="strat-value" id="stratMaxLoss">--</span></div>
     </section>
     <section class="panel chart-wrap" style="margin-top:14px">
       <div class="chart-head">
@@ -1171,6 +1190,16 @@ HTML = """<!doctype html>
         document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'}；买入线 ${fmt(swing.buy_price || 0, 2)}，目标线 ${fmt(swing.sell_price || 0, 2)}；已用 ${fmt(swing.position_quote || 0, 2)} / ${fmt(swing.allocation_quote || 0, 2)} ${data.quote_asset}`;
         const scalp = data.defensive_scalp || {};
         document.getElementById('scalp').textContent = `${scalp.enabled ? '开启' : '关闭'}；${scalp.active ? '防守期' : '等待防守'}，${scalp.range_bound ? '可吃小震荡' : '暂不适合'}；单笔约 ${fmt(scalp.order_quote_size || 0, 2)}，已用 ${fmt(scalp.position_quote || 0, 2)} / ${fmt(scalp.allocation_quote || 0, 2)} ${data.quote_asset}`;
+        const summary = data.strategy_summary || {};
+        document.getElementById('stratTP').textContent = fmt((summary.take_profit_pct || 0) * 100, 2) + '%';
+        document.getElementById('stratGrid').textContent = fmt((summary.grid_step_pct || 0) * 100, 2) + '%';
+        const sizingEl = document.getElementById('stratSizing');
+        sizingEl.textContent = summary.auto_position_sizing ? '自动' : '手动';
+        sizingEl.className = 'strat-value ' + (summary.auto_position_sizing ? 'strat-on' : '');
+        const defEl = document.getElementById('stratDefensive');
+        defEl.textContent = summary.defensive_mode ? '开启' : '关闭';
+        defEl.className = 'strat-value ' + (summary.defensive_mode ? 'strat-on' : 'strat-off');
+        document.getElementById('stratMaxLoss').textContent = fmt(summary.max_floating_loss_quote || 0, 0) + ' U';
         document.getElementById('error').textContent = '--';
         updateMascotMarket(data);
         drawChart(data.price_history || [], data.reference_price, data.trades || []);
@@ -1690,6 +1719,13 @@ class Dashboard:
                 "max_position_quote": sizing.max_position_quote,
                 "tier": sizing.tier,
                 "enabled": sizing.enabled,
+            },
+            "strategy_summary": {
+                "take_profit_pct": self.config.take_profit_pct,
+                "grid_step_pct": self.config.grid_step_pct,
+                "auto_position_sizing": self.config.auto_position_sizing,
+                "defensive_mode": self.config.defensive_mode,
+                "max_floating_loss_quote": self.config.max_floating_loss_quote,
             },
         }
 
