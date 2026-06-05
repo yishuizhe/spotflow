@@ -23,7 +23,7 @@ tar \
   --exclude='__pycache__' \
   --exclude='*.pyc' \
   -czf "$TMP_ARCHIVE" \
-  pyproject.toml README.md .env binance_testnet_agent tests deploy
+  pyproject.toml README.md CHANGELOG.md .env binance_testnet_agent tests deploy
 
 scp -i "$KEY_PATH" -o StrictHostKeyChecking=accept-new "$TMP_ARCHIVE" "$USER_NAME@$HOST:/tmp/binance-testnet-agent.tar.gz"
 

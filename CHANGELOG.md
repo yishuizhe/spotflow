@@ -8,6 +8,7 @@
 - Reduced unused space in the top dashboard and reorganized the main account, PnL, and trading controls into a denser layout.
 - Standardized displayed prices, quote amounts, PnL, fees, and backtest results to two decimals while preserving BTC quantity precision.
 - Added open-lot pagination, kept all four desktop lot actions on one row, and moved the mascot further left.
+- Added `CHANGELOG.md` to the deployment archive so server-side release notes stay synchronized with the deployed code.
 
 ## v1.0.5 - 2026-06-05
 
