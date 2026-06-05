@@ -257,11 +257,11 @@ HTML = """<!doctype html>
     .mascot.hidden { display: none; }
     .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-    .mascot-eye { position: absolute; top: 40px; width: 14px; height: 18px; border-radius: 54% 54% 50% 50%; background: radial-gradient(circle at 40% 34%, #fff 0 16%, #e9fbff 17% 62%, #a7edf2 100%); border: 1px solid rgba(16, 56, 70, .22); overflow: hidden; box-shadow: inset 0 -2px 4px rgba(3, 105, 161, .12), 0 1px 1px rgba(255,255,255,.55); }
-    .mascot-eye.left { left: 40px; transform: rotate(7deg); }
-    .mascot-eye.right { left: 59px; transform: rotate(-6deg); }
-    .eye-iris { position: absolute; left: 3px; top: 4px; width: 8px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 62% 36%, #ffffff 0 12%, #6ee7f5 13% 40%, #0f766e 41% 72%, #062f36 73% 100%); transition: transform .08s linear; }
-    .eye-iris::after { content: ""; position: absolute; left: 3px; top: 3px; width: 3px; height: 4px; border-radius: 50%; background: rgba(2, 8, 23, .82); }
+    .mascot-eye { position: absolute; top: 43px; width: 9px; height: 11px; border-radius: 50%; overflow: visible; }
+    .mascot-eye.left { left: 42px; transform: rotate(6deg); }
+    .mascot-eye.right { left: 59px; transform: rotate(-5deg); }
+    .eye-iris { position: absolute; left: 1px; top: 1px; width: 6px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 64% 28%, rgba(255,255,255,.95) 0 13%, #6ee7f5 14% 36%, #159796 37% 68%, #052f38 69% 100%); opacity: .86; mix-blend-mode: multiply; transition: transform .08s linear; }
+    .eye-iris::after { content: ""; position: absolute; left: 2px; top: 2px; width: 2px; height: 3px; border-radius: 50%; background: rgba(2, 8, 23, .62); }
     .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
     .mascot.speaking .mascot-bubble { opacity: 1; transform: translateY(0); }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -319,11 +319,11 @@ HTML = """<!doctype html>
       .theme-drawer { width: min(300px, calc(100vw - 24px)); }
       .mascot { left: 14px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 70px; height: 105px; }
-      .mascot-eye { top: 25px; width: 9px; height: 11px; }
-      .mascot-eye.left { left: 25px; }
+      .mascot-eye { top: 27px; width: 6px; height: 7px; }
+      .mascot-eye.left { left: 26px; }
       .mascot-eye.right { left: 37px; }
-      .eye-iris { left: 2px; top: 2px; width: 5px; height: 7px; }
-      .eye-iris::after { left: 2px; top: 2px; width: 2px; height: 3px; }
+      .eye-iris { left: 1px; top: 1px; width: 4px; height: 5px; }
+      .eye-iris::after { left: 1px; top: 1px; width: 1.5px; height: 2px; }
       .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
     }
   </style>
@@ -1405,8 +1405,8 @@ HTML = """<!doctype html>
       const mascot = document.getElementById('mascot');
       if (!mascot || mascot.classList.contains('hidden')) return;
       const face = mascot.querySelector('.mascot-figure').getBoundingClientRect();
-      const dx = Math.max(-3, Math.min(3, (event.clientX - (face.left + face.width / 2)) / Math.max(face.width, 1) * 8));
-      const dy = Math.max(-2, Math.min(2, (event.clientY - (face.top + face.height * .28)) / Math.max(face.height, 1) * 7));
+      const dx = Math.max(-1.4, Math.min(1.4, (event.clientX - (face.left + face.width / 2)) / Math.max(face.width, 1) * 3.2));
+      const dy = Math.max(-.9, Math.min(.9, (event.clientY - (face.top + face.height * .28)) / Math.max(face.height, 1) * 2.4));
       mascot.querySelectorAll('.eye-iris').forEach(iris => { iris.style.transform = `translate(${dx}px, ${dy}px)`; });
     });
     document.addEventListener('mouseover', event => {
