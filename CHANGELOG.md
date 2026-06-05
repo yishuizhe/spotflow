@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.4 - 2026-06-05
+
+- Added a prominent top-of-page success/error toast for system settings updates.
+- Added a persistent styled result block inside the settings modal and prevented settings reload from immediately overwriting the save result.
+- Added a saving state to the settings button and an explicit dismiss control for the toast.
+
 ## v1.0.3 - 2026-06-05
 
 - Removed the mascot eye animation overlay and kept the original static character artwork for a cleaner look.

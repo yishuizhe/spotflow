@@ -238,6 +238,9 @@ HTML = """<!doctype html>
     .settings-title { margin: 0 0 10px; color: var(--text); font-size: 15px; font-weight: 850; }
     .settings-help { margin: -4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .settings-status { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 88%, transparent); color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .settings-status.success { border-color: color-mix(in srgb, var(--switch-on) 48%, var(--line)); background: color-mix(in srgb, var(--switch-on) 10%, var(--panel-strong)); color: var(--switch-on); font-weight: 800; }
+    .settings-status.error { border-color: color-mix(in srgb, var(--switch-off) 48%, var(--line)); background: color-mix(in srgb, var(--switch-off) 10%, var(--panel-strong)); color: var(--switch-off); font-weight: 800; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     .secondary-button { border: 1px solid var(--line); border-radius: 8px; min-height: 38px; padding: 0 13px; background: var(--panel-strong); color: var(--text); font-weight: 800; cursor: pointer; }
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
@@ -259,6 +262,11 @@ HTML = """<!doctype html>
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
     .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
     .mascot.speaking .mascot-bubble { opacity: 1; transform: translateY(0); }
+    .notice-toast { position: fixed; left: 50%; top: 22px; z-index: 40; width: min(520px, calc(100vw - 28px)); padding: 14px 48px 14px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-strong); color: var(--text); box-shadow: 0 22px 55px rgba(15,23,42,.22); opacity: 0; transform: translate(-50%, -18px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; font-weight: 800; line-height: 1.5; }
+    .notice-toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+    .notice-toast.success { border-color: var(--switch-on); box-shadow: 0 22px 55px color-mix(in srgb, var(--switch-on) 20%, transparent); }
+    .notice-toast.error { border-color: var(--switch-off); box-shadow: 0 22px 55px color-mix(in srgb, var(--switch-off) 20%, transparent); }
+    .notice-toast button { position: absolute; right: 10px; top: 9px; width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
     @media (max-width: 980px) {
       main { width: 100%; overflow-x: hidden; }
@@ -520,7 +528,7 @@ HTML = """<!doctype html>
         </div>
       </div>
       <div id="configSettings"></div>
-      <div class="muted" id="settingsStatus" style="margin-top:12px">密码字段不会回显；留空表示不修改。</div>
+      <div class="settings-status" id="settingsStatus">密码字段不会回显；留空表示不修改。</div>
       <div class="modal-actions">
         <button class="secondary-button" id="settingsReload">重新读取</button>
         <button class="action-button" id="settingsSave">保存设置</button>
@@ -534,6 +542,10 @@ HTML = """<!doctype html>
       <div class="muted" id="loginStatus" style="margin-top:12px">请输入页面密码后查看实盘看板。</div>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
+  </div>
+  <div class="notice-toast" id="noticeToast" role="status" aria-live="polite">
+    <span id="noticeText"></span>
+    <button id="noticeClose" aria-label="关闭提示">×</button>
   </div>
   <aside class="floating-dock" id="themeDock">
     <div class="theme-drawer" id="themeDrawer">
@@ -582,6 +594,7 @@ HTML = """<!doctype html>
     let loginValidated = false;
     let mascotBubbleTimer = null;
     let mascotMarketSaidAt = 0;
+    let noticeTimer = null;
     const tradePageSize = 9;
     const closedPageSize = 8;
     const canvas = document.getElementById('chart');
@@ -592,6 +605,18 @@ HTML = """<!doctype html>
       if (tradingPassword) headers['X-Trading-Password'] = tradingPassword;
       if (payload) headers['X-Action-Payload'] = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       return headers;
+    }
+    function setSettingsStatus(message, type = '') {
+      const status = document.getElementById('settingsStatus');
+      status.textContent = message;
+      status.className = `settings-status${type ? ` ${type}` : ''}`;
+    }
+    function showNotice(message, type = 'success', duration = 8000) {
+      const toast = document.getElementById('noticeToast');
+      document.getElementById('noticeText').textContent = message;
+      toast.className = `notice-toast ${type} show`;
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => { toast.classList.remove('show'); }, duration);
     }
     async function apiGet(path, payload, tradingPassword) {
       const res = await fetch(path, { method: 'GET', cache: 'no-store', headers: authHeaders(tradingPassword, payload) });
@@ -955,7 +980,7 @@ HTML = """<!doctype html>
       prev.disabled = page <= 0;
       next.disabled = !pages || page >= pages - 1;
     }
-    async function loadSettings() {
+    async function loadSettings(resetStatus = true) {
       const data = await apiGet('/api/settings');
       document.getElementById('setDashboardPassword').value = '';
       document.getElementById('setDashboardPassword').placeholder = data.dashboard_password_set ? '已设置，留空不改' : '未设置';
@@ -972,7 +997,7 @@ HTML = """<!doctype html>
       document.getElementById('setSmtpFromName').value = data.smtp_from_name || '';
       document.getElementById('setReportRecipient').value = data.report_recipient || '';
       renderConfigSettings(data.config_fields || []);
-      document.getElementById('settingsStatus').textContent = '密码字段不会回显；留空表示不修改。';
+      if (resetStatus) setSettingsStatus('密码字段不会回显；留空表示不修改。');
       settingsLoaded = true;
     }
     function renderConfigSettings(fields) {
@@ -1341,34 +1366,64 @@ HTML = """<!doctype html>
     async function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('open');
       if (!settingsLoaded) {
-        try { await loadSettings(); } catch (err) { document.getElementById('settingsStatus').textContent = String(err.message || err); }
+        try { await loadSettings(); } catch (err) { setSettingsStatus(String(err.message || err), 'error'); }
       }
     }
     document.getElementById('settingsClose').addEventListener('click', () => {
       document.getElementById('settingsModal').classList.remove('open');
     });
     document.getElementById('settingsReload').addEventListener('click', async () => {
-      try { await loadSettings(); } catch (err) { document.getElementById('settingsStatus').textContent = String(err.message || err); }
+      try {
+        await loadSettings();
+        showNotice('设置已重新读取。', 'success', 4000);
+      } catch (err) {
+        const message = err.message || String(err);
+        setSettingsStatus(message, 'error');
+        showNotice(`读取设置失败：${message}`, 'error');
+      }
     });
     document.getElementById('settingsSave').addEventListener('click', async () => {
       const password = window.prompt('输入当前交易开关密码以保存设置');
       if (!password) return;
+      const saveButton = document.getElementById('settingsSave');
+      saveButton.disabled = true;
+      saveButton.textContent = '保存中...';
+      setSettingsStatus('正在保存并校验设置...');
       try { await apiGet('/api/settings/update', settingsPayload(password), password); }
-      catch (err) { document.getElementById('settingsStatus').textContent = err.message || String(err); return; }
+      catch (err) {
+        const message = err.message || String(err);
+        setSettingsStatus(message, 'error');
+        showNotice(`设置保存失败：${message}`, 'error');
+        saveButton.disabled = false;
+        saveButton.textContent = '保存设置';
+        return;
+      }
       try {
         const profitResult = await apiGet('/api/strategy/take-profit', {
           take_profit_pct: Number(document.getElementById('setTakeProfitPct').value || 0),
           apply_existing: document.getElementById('setApplyTakeProfit').value === 'true'
         }, password);
         const lots = profitResult.lots || {};
-        document.getElementById('settingsStatus').textContent = `已保存。盈利比例 ${fmt((profitResult.take_profit_pct || 0) * 100, 4)}%，未平批次更新 ${lots.updated || 0} 个，跳过 ${lots.skipped || 0} 个。`;
+        const message = `设置保存成功。盈利比例 ${fmt((profitResult.take_profit_pct || 0) * 100, 4)}%，未平批次更新 ${lots.updated || 0} 个，跳过 ${lots.skipped || 0} 个。`;
+        setSettingsStatus(message, 'success');
+        showNotice(message, 'success');
       } catch (err) {
-        document.getElementById('settingsStatus').textContent = err.message || String(err);
+        const message = err.message || String(err);
+        setSettingsStatus(message, 'error');
+        showNotice(`设置部分保存失败：${message}`, 'error');
+        saveButton.disabled = false;
+        saveButton.textContent = '保存设置';
         return;
       }
       settingsLoaded = false;
-      await loadSettings();
+      await loadSettings(false);
+      saveButton.disabled = false;
+      saveButton.textContent = '保存设置';
       refresh();
+    });
+    document.getElementById('noticeClose').addEventListener('click', () => {
+      document.getElementById('noticeToast').classList.remove('show');
+      if (noticeTimer) clearTimeout(noticeTimer);
     });
     document.getElementById('themeFab').addEventListener('click', () => {
       document.getElementById('themeDock').classList.toggle('open');
