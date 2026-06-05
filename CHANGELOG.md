@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.2 - 2026-06-05
+
+- Reworked the mascot eye animation again: removed the oversized full-eye overlay and kept the original character eyes visible.
+- Added only a tiny same-color iris/highlight movement layer with a much smaller tracking range to avoid the exaggerated look.
+
 ## v1.0.1 - 2026-06-05
 
 - Replaced the awkward black mascot eye dots with a complete animated eye layer whose irises follow the mouse.
