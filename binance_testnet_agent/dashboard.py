@@ -257,11 +257,6 @@ HTML = """<!doctype html>
     .mascot.hidden { display: none; }
     .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-    .mascot-eye { position: absolute; top: 43px; width: 9px; height: 11px; border-radius: 50%; overflow: visible; }
-    .mascot-eye.left { left: 42px; transform: rotate(6deg); }
-    .mascot-eye.right { left: 59px; transform: rotate(-5deg); }
-    .eye-iris { position: absolute; left: 1px; top: 1px; width: 6px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 64% 28%, rgba(255,255,255,.95) 0 13%, #6ee7f5 14% 36%, #159796 37% 68%, #052f38 69% 100%); opacity: .86; mix-blend-mode: multiply; transition: transform .08s linear; }
-    .eye-iris::after { content: ""; position: absolute; left: 2px; top: 2px; width: 2px; height: 3px; border-radius: 50%; background: rgba(2, 8, 23, .62); }
     .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
     .mascot.speaking .mascot-bubble { opacity: 1; transform: translateY(0); }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -319,11 +314,6 @@ HTML = """<!doctype html>
       .theme-drawer { width: min(300px, calc(100vw - 24px)); }
       .mascot { left: 14px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 70px; height: 105px; }
-      .mascot-eye { top: 27px; width: 6px; height: 7px; }
-      .mascot-eye.left { left: 26px; }
-      .mascot-eye.right { left: 37px; }
-      .eye-iris { left: 1px; top: 1px; width: 4px; height: 5px; }
-      .eye-iris::after { left: 1px; top: 1px; width: 1.5px; height: 2px; }
       .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
     }
   </style>
@@ -569,8 +559,6 @@ HTML = """<!doctype html>
   <aside class="mascot" id="mascot">
     <div class="mascot-figure">
       <img src="/static/mascot-ai.png" alt="看板助手">
-      <span class="mascot-eye left"><span class="eye-iris"></span></span>
-      <span class="mascot-eye right"><span class="eye-iris"></span></span>
     </div>
     <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
   </aside>
@@ -1400,14 +1388,6 @@ HTML = """<!doctype html>
     document.getElementById('mascotToggle').addEventListener('click', () => {
       const hidden = document.getElementById('mascot').classList.contains('hidden');
       setMascotVisible(hidden);
-    });
-    document.addEventListener('mousemove', event => {
-      const mascot = document.getElementById('mascot');
-      if (!mascot || mascot.classList.contains('hidden')) return;
-      const face = mascot.querySelector('.mascot-figure').getBoundingClientRect();
-      const dx = Math.max(-1.4, Math.min(1.4, (event.clientX - (face.left + face.width / 2)) / Math.max(face.width, 1) * 3.2));
-      const dy = Math.max(-.9, Math.min(.9, (event.clientY - (face.top + face.height * .28)) / Math.max(face.height, 1) * 2.4));
-      mascot.querySelectorAll('.eye-iris').forEach(iris => { iris.style.transform = `translate(${dx}px, ${dy}px)`; });
     });
     document.addEventListener('mouseover', event => {
       const target = event.target.closest('[data-help], button, th, .label, .panel-title, .summary-card span, .status-item .k');

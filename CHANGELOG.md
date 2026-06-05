@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.3 - 2026-06-05
+
+- Removed the mascot eye animation overlay and kept the original static character artwork for a cleaner look.
+
 ## v1.0.2 - 2026-06-05
 
 - Reworked the mascot eye animation again: removed the oversized full-eye overlay and kept the original character eyes visible.
