@@ -160,28 +160,35 @@ HTML = """<!doctype html>
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; transition: background .28s ease, color .28s ease; }
     body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: var(--page-art); }
-    main { position: relative; max-width: 1320px; margin: 0 auto; padding: 28px; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 18px; }
+    main { position: relative; max-width: 1440px; margin: 0 auto; padding: 22px; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 14px; }
     h1 { margin: 0; font-size: 30px; font-weight: 760; letter-spacing: 0; }
     .muted { color: var(--muted); font-size: 14px; }
-    .top-board { display: grid; grid-template-columns: 1.25fr .95fr .95fr; gap: 14px; align-items: stretch; }
+    .top-board { display: grid; grid-template-columns: 1.15fr 1fr 1fr 1.15fr; gap: 12px; align-items: stretch; }
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; box-shadow: var(--shadow); }
-    .metric-card { position: relative; overflow: hidden; min-height: 172px; }
+    .metric-card { position: relative; overflow: hidden; min-height: 154px; }
     .metric-card::after { content: ""; position: absolute; inset: auto -42px -64px auto; width: 160px; height: 160px; border-radius: 999px; background: rgba(14, 165, 233, .10); }
     .label { color: var(--muted); font-size: 13px; font-weight: 760; margin-bottom: 8px; }
     .value { font-size: 25px; font-weight: 760; overflow-wrap: anywhere; letter-spacing: 0; }
     .hero-symbol { font-size: 18px; color: var(--muted); font-weight: 760; margin-bottom: 12px; }
-    .hero-price { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: 0; margin-bottom: 18px; }
+    .hero-price { font-size: 42px; line-height: 1; font-weight: 800; letter-spacing: 0; margin-bottom: 14px; }
     .signal-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .signal-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 13px; border-radius: 999px; background: color-mix(in srgb, var(--accent-2) 14%, transparent); color: var(--good); font-weight: 800; }
-    .capital-stack { display: grid; gap: 14px; }
-    .capital-value { font-size: 30px; font-weight: 800; margin-bottom: 10px; }
-    .pnl-card .value { font-size: 26px; margin-bottom: 14px; }
+    .capital-stack { display: contents; }
+    .capital-stack .panel { min-height: 154px; }
+    .capital-value { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .pnl-card .value { font-size: 24px; margin-bottom: 12px; }
     .control-panel { display: grid; align-content: start; gap: 14px; }
     .control-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
     .control-row:last-child { padding-bottom: 0; border-bottom: 0; }
     .button-stack { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
     .button-stack button { min-height: 40px; }
+    .strategy-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--line-soft); box-shadow: var(--shadow); }
+    .strat-item { display: grid; gap: 3px; padding: 10px 14px; background: var(--panel); min-width: 0; }
+    .strat-label { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .strat-value { color: var(--text); font-size: 14px; font-weight: 850; overflow-wrap: anywhere; }
+    .strat-on { color: var(--switch-on); }
+    .strat-off { color: var(--muted); }
     .profit { color: var(--good); }
     .loss { color: var(--bad); }
     .warn { color: var(--warn); }
@@ -242,6 +249,7 @@ HTML = """<!doctype html>
     .settings-status.success { border-color: color-mix(in srgb, var(--switch-on) 48%, var(--line)); background: color-mix(in srgb, var(--switch-on) 10%, var(--panel-strong)); color: var(--switch-on); font-weight: 800; }
     .settings-status.error { border-color: color-mix(in srgb, var(--switch-off) 48%, var(--line)); background: color-mix(in srgb, var(--switch-off) 10%, var(--panel-strong)); color: var(--switch-off); font-weight: 800; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+    .settings-modal-actions { position: sticky; bottom: -18px; z-index: 3; margin: 14px -18px -18px; padding: 12px 18px; background: var(--panel-strong); border-top: 1px solid var(--line-soft); box-shadow: 0 -12px 24px rgba(15,23,42,.06); }
     .secondary-button { border: 1px solid var(--line); border-radius: 8px; min-height: 38px; padding: 0 13px; background: var(--panel-strong); color: var(--text); font-weight: 800; cursor: pointer; }
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
@@ -256,7 +264,7 @@ HTML = """<!doctype html>
     .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
     .theme-chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
     .theme-toggle { width: 100%; margin-top: 8px; }
-    .mascot { position: fixed; left: 28px; bottom: 0; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
+    .mascot { position: fixed; left: 8px; bottom: 0; z-index: 17; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
     .mascot.hidden { display: none; }
     .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -268,9 +276,12 @@ HTML = """<!doctype html>
     .notice-toast.error { border-color: var(--switch-off); box-shadow: 0 22px 55px color-mix(in srgb, var(--switch-off) 20%, transparent); }
     .notice-toast button { position: absolute; right: 10px; top: 9px; width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .lot-actions { display: grid; grid-template-columns: repeat(4, max-content); gap: 6px; align-items: center; }
+    .lot-actions button { min-height: 34px; padding: 0 10px; white-space: nowrap; font-size: 12px; }
     @media (max-width: 980px) {
       main { width: 100%; overflow-x: hidden; }
       .top-board { grid-template-columns: 1fr; }
+      .capital-stack { display: contents; }
       .split { grid-template-columns: 1fr; }
       .inline-controls { grid-template-columns: 1fr 1fr; }
       header { display: block; }
@@ -317,12 +328,15 @@ HTML = """<!doctype html>
       .modal-panel { max-height: calc(100vh - 24px); padding: 14px; }
       .modal-actions { flex-direction: column-reverse; }
       .modal-actions button { width: 100%; }
+      .settings-modal-actions { bottom: -14px; margin: 14px -14px -14px; padding: 12px 14px; }
       .floating-dock { right: 12px; bottom: 12px; }
       .dock-fab { width: 48px; height: 48px; font-size: 12px; }
       .theme-drawer { width: min(300px, calc(100vw - 24px)); }
-      .mascot { left: 14px; bottom: 0; gap: 6px; }
+      .mascot { left: 2px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 70px; height: 105px; }
       .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
+      .strategy-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .strat-item:last-child { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -377,6 +391,13 @@ HTML = """<!doctype html>
           </div>
         </div>
       </div>
+    </section>
+    <section class="strategy-bar" id="strategyBar">
+      <div class="strat-item"><span class="strat-label">止盈比例</span><span class="strat-value" id="stratTP">--</span></div>
+      <div class="strat-item"><span class="strat-label">买入间距</span><span class="strat-value" id="stratGrid">--</span></div>
+      <div class="strat-item"><span class="strat-label">仓位分档</span><span class="strat-value" id="stratSizing">--</span></div>
+      <div class="strat-item"><span class="strat-label">防守模式</span><span class="strat-value" id="stratDefensive">--</span></div>
+      <div class="strat-item"><span class="strat-label">浮亏保护</span><span class="strat-value" id="stratMaxLoss">--</span></div>
     </section>
     <section class="panel chart-wrap" style="margin-top:14px">
       <div class="chart-head">
@@ -473,10 +494,13 @@ HTML = """<!doctype html>
           <button class="secondary-button" id="bulkLimitSell">一键限价卖</button>
         </div>
       </div>
-      <table>
-        <thead><tr><th>批次</th><th>状态</th><th>成本价</th><th>预计卖价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>浮盈亏</th><th>操作</th></tr></thead>
-        <tbody id="openLots"><tr><td colspan="9" class="muted">暂无未平批次</td></tr></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>批次</th><th>状态</th><th>成本价</th><th>预计卖价</th><th>手动价格</th><th>数量</th><th>手续费</th><th>浮盈亏</th><th>操作</th></tr></thead>
+          <tbody id="openLots"><tr><td colspan="9" class="muted">暂无未平批次</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager"><button id="openPrev">上一页</button><span id="openPage">1 / 1</span><button id="openNext">下一页</button></div>
     </section>
     <section class="panel" style="margin-top:14px">
       <div class="label">限价挂单</div>
@@ -529,7 +553,7 @@ HTML = """<!doctype html>
       </div>
       <div id="configSettings"></div>
       <div class="settings-status" id="settingsStatus">密码字段不会回显；留空表示不修改。</div>
-      <div class="modal-actions">
+      <div class="modal-actions settings-modal-actions">
         <button class="secondary-button" id="settingsReload">重新读取</button>
         <button class="action-button" id="settingsSave">保存设置</button>
       </div>
@@ -581,6 +605,7 @@ HTML = """<!doctype html>
   <script>
     const fmt = (n, digits = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: digits });
     const rangeLabels = { minute: '近 60 分钟', '5m': '近 5 分钟', '15m': '近 15 分钟', '1h': '近 1 小时', '4h': '近 4 小时', day: '近 24 小时', week: '近 7 天' };
+    const rangeOrder = ['5m', '15m', '1h', '4h', 'day', 'week'];
     let activeRange = 'minute';
     let chartZoom = { start: 0, end: 1 };
     let chartPoints = [];
@@ -590,9 +615,13 @@ HTML = """<!doctype html>
     let latestTrades = [];
     let latestClosedLots = [];
     let latestOpenLots = [];
+    let latestOpenPrice = 0;
+    let latestPendingOrders = [];
     let manualBuyAutoSellDefault = false;
     let tradePage = 0;
     let closedPage = 0;
+    let openPage = 0;
+    let rangeWheelLocked = false;
     let settingsLoaded = false;
     const loginCacheKey = 'dashboardPasswordCache';
     function readCachedLogin() {
@@ -622,6 +651,7 @@ HTML = """<!doctype html>
     let noticeTimer = null;
     const tradePageSize = 9;
     const closedPageSize = 8;
+    const openPageSize = 6;
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
     const chartTip = document.getElementById('chartTip');
@@ -817,7 +847,7 @@ HTML = """<!doctype html>
         const sideClass = String(t.side || '').includes('BUY') ? 'profit' : 'warn';
         const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${fmt(quote || 0, 6)}</td>`;
+        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${fmt(quote || 0, 2)}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['时间', '方向', '批次', '金额']);
@@ -917,6 +947,8 @@ HTML = """<!doctype html>
     }
     function renderOpenLots(lots, currentPrice, pendingOrders) {
       latestOpenLots = lots || [];
+      latestOpenPrice = Number(currentPrice || latestOpenPrice || 0);
+      latestPendingOrders = pendingOrders || latestPendingOrders || [];
       const tbody = document.getElementById('openLots');
       tbody.innerHTML = '';
       if (!lots.length) {
@@ -924,26 +956,29 @@ HTML = """<!doctype html>
         tbody.innerHTML = externalSells.length
           ? `<tr><td colspan="9" class="muted">暂无未平批次。当前有 ${externalSells.length} 个外部持仓限价卖单，请在下方“限价挂单”查看；外部挂单不会生成账本批次。</td></tr>`
           : '<tr><td colspan="9" class="muted">暂无未平批次。按批次限价卖出需要先有脚本账本批次；如果是外部持仓，请用上方“外部持仓限价卖出”。</td></tr>';
+        updatePager('open', 0, 0);
         return;
       }
-      lots.forEach(lot => {
+      const pages = Math.max(1, Math.ceil(lots.length / openPageSize));
+      openPage = Math.min(openPage, pages - 1);
+      lots.slice(openPage * openPageSize, (openPage + 1) * openPageSize).forEach(lot => {
         const qty = Number(lot.remaining_quantity || 0);
         const buy = Number(lot.buy_price || 0);
         const target = Number(lot.effective_target_price || lot.target_price || 0);
         const manualNote = lot.auto_sell === false ? ' <span class="badge">手动</span>' : '';
         const swingNote = lot.target_note === 'swing' ? ' <span class="badge">波段</span>' : '';
         const note = lot.target_price_adjusted ? ` <span class="badge">防守 ${lot.target_note}</span>` : (swingNote || manualNote);
-        const pnl = (Number(currentPrice) - buy) * qty;
+        const pnl = (latestOpenPrice - buy) * qty;
         const fee = Number(lot.fee_quote || lot.buy_fee_quote || 0);
         const status = lot.pending_limit_sell_order_id ? '限价卖出中' : (lot.auto_sell === false ? '手动持仓' : '自动卖出');
-        const manualPrice = lot.pending_limit_sell_price ? fmt(lot.pending_limit_sell_price, 8) : '--';
+        const manualPrice = lot.pending_limit_sell_price ? fmt(lot.pending_limit_sell_price, 2) : '--';
         const manualSell = `<button class="secondary-button" data-manual-sell="${lot.id}">市价卖出</button>`;
         const autoToggle = `<button class="secondary-button" data-auto-sell="${lot.id}" data-auto-sell-enabled="${lot.auto_sell === false ? 'true' : 'false'}">${lot.auto_sell === false ? '开启自动卖' : '取消自动卖'}</button>`;
         const limitSell = `<button class="secondary-button" data-limit-sell="${lot.id}" data-target-price="${target}">限价卖出</button>`;
         const externalClose = `<button class="secondary-button" data-external-close="${lot.id}">外部已卖</button>`;
-        const action = `<div style="display:flex;gap:6px;flex-wrap:wrap">${manualSell}${autoToggle}${limitSell}${externalClose}</div>`;
+        const action = `<div class="lot-actions">${manualSell}${autoToggle}${limitSell}${externalClose}</div>`;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 8)}</td><td>${fmt(target, 8)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 2)}</td><td>${fmt(target, 2)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 2)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 2)}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['批次', '状态', '成本价', '预计卖价', '手动价格', '数量', '手续费', '浮盈亏', '操作']);
@@ -959,6 +994,7 @@ HTML = """<!doctype html>
       tbody.querySelectorAll('[data-auto-sell]').forEach(button => {
         button.addEventListener('click', () => setLotAutoSell(button.dataset.autoSell, button.dataset.autoSellEnabled === 'true'));
       });
+      updatePager('open', openPage, pages);
     }
     function renderPendingOrders(orders) {
       const tbody = document.getElementById('pendingOrders');
@@ -973,7 +1009,7 @@ HTML = """<!doctype html>
         const sideClass = order.side === 'BUY' ? 'profit' : 'warn';
         const action = canCancel ? `<button class="secondary-button" data-cancel-order="${order.order_id}">取消</button>` : '--';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${sideLabel(order.side)}</span></td><td>${fmt(order.limit_price || 0, 8)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${sideLabel(order.side)}</span></td><td>${fmt(order.limit_price || 0, 2)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['时间', '方向', '限价', '数量', '状态', '操作']);
@@ -997,9 +1033,9 @@ HTML = """<!doctype html>
         const pnl = Number(lot.net_realized_pnl ?? lot.realized_pnl ?? 0);
         const fee = Number(lot.fee_quote || lot.total_fee_quote || 0);
         const status = lot.external_close ? '外部已卖' : (lot.limit_sell_filled ? '限价卖出成交' : '自动/市价卖出');
-        const manualPrice = lot.manual_sell_price ? fmt(lot.manual_sell_price, 8) : '--';
+        const manualPrice = lot.manual_sell_price ? fmt(lot.manual_sell_price, 2) : '--';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${lot.closed_at ? new Date(lot.closed_at).toLocaleString() : '--'}</td><td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(lot.buy_price || 0, 8)}</td><td>${fmt(lot.sell_price || 0, 8)}</td><td>${manualPrice}</td><td>${fmt(lot.quantity || 0, 8)}</td><td>${fmt(fee, 6)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 6)}</td>`;
+        tr.innerHTML = `<td>${lot.closed_at ? new Date(lot.closed_at).toLocaleString() : '--'}</td><td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(lot.buy_price || 0, 2)}</td><td>${fmt(lot.sell_price || 0, 2)}</td><td>${manualPrice}</td><td>${fmt(lot.quantity || 0, 8)}</td><td>${fmt(fee, 2)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 2)}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['关闭时间', '批次', '状态', '成本价', '卖出价', '手动价格', '数量', '手续费', '净利润']);
@@ -1123,7 +1159,7 @@ HTML = """<!doctype html>
       rows.forEach(row => {
         const tr = document.createElement('tr');
         const ret = Number(row.total_return_pct || 0);
-        tr.innerHTML = `<td>${row.scenario || '--'}</td><td>${fmt(Number(row.take_profit_pct || 0) * 100, 3)}%</td><td>${fmt(row.final_value || 0, 4)}</td><td class="${ret >= 0 ? 'profit' : 'loss'}">${fmt(ret, 2)}%</td><td>${fmt(row.realized_net_pnl || 0, 4)}</td><td>${fmt(row.unrealized_pnl || 0, 4)}</td><td>${fmt(row.fees_paid || 0, 4)}</td><td>${row.buys || 0}/${row.sells || 0}</td><td>${row.open_lots || 0}</td><td>${fmt(row.max_drawdown_quote || 0, 4)}</td>`;
+        tr.innerHTML = `<td>${row.scenario || '--'}</td><td>${fmt(Number(row.take_profit_pct || 0) * 100, 2)}%</td><td>${fmt(row.final_value || 0, 2)}</td><td class="${ret >= 0 ? 'profit' : 'loss'}">${fmt(ret, 2)}%</td><td>${fmt(row.realized_net_pnl || 0, 2)}</td><td>${fmt(row.unrealized_pnl || 0, 2)}</td><td>${fmt(row.fees_paid || 0, 2)}</td><td>${row.buys || 0}/${row.sells || 0}</td><td>${row.open_lots || 0}</td><td>${fmt(row.max_drawdown_quote || 0, 2)}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['场景', '盈利比例', '总资产', '收益率', '已实现', '未实现', '手续费', '买/卖', '未平', '最大回撤']);
@@ -1139,19 +1175,19 @@ HTML = """<!doctype html>
         const data = await apiGet('/api/status?range=' + encodeURIComponent(activeRange));
         manualBuyAutoSellDefault = Boolean(data.manual_buy_auto_sell);
         document.getElementById('symbol').textContent = data.symbol;
-        document.getElementById('price').textContent = fmt(data.price, 8);
+        document.getElementById('price').textContent = fmt(data.price, 2);
         document.getElementById('signal').textContent = data.signal;
         const executeButton = document.getElementById('execute');
         executeButton.textContent = data.execute_trades ? '交易已开' : '交易暂停';
         executeButton.className = 'action-button ' + (data.execute_trades ? 'on' : 'off');
-        document.getElementById('value').textContent = fmt(data.value_quote, 6) + ' ' + data.quote_asset;
+        document.getElementById('value').textContent = fmt(data.value_quote, 2) + ' ' + data.quote_asset;
         const pnl = document.getElementById('pnl');
-        pnl.textContent = fmt(data.pnl_quote, 6) + ' ' + data.quote_asset + ' / ' + fmt(data.pnl_pct, 4) + '%';
+        pnl.textContent = fmt(data.pnl_quote, 2) + ' ' + data.quote_asset + ' / ' + fmt(data.pnl_pct, 2) + '%';
         pnl.className = 'value ' + (data.pnl_quote >= 0 ? 'profit' : 'loss');
         const baseLocked = Number(data.base_locked_balance || 0);
         const quoteLocked = Number(data.quote_locked_balance || 0);
         document.getElementById('base').textContent = fmt(data.base_balance, 8) + ' ' + data.base_asset + (baseLocked > 0 ? `（锁定 ${fmt(baseLocked, 8)}）` : '');
-        document.getElementById('quote').textContent = fmt(data.quote_balance, 8) + ' ' + data.quote_asset + (quoteLocked > 0 ? `（锁定 ${fmt(quoteLocked, 8)}）` : '');
+        document.getElementById('quote').textContent = fmt(data.quote_balance, 2) + ' ' + data.quote_asset + (quoteLocked > 0 ? `（锁定 ${fmt(quoteLocked, 2)}）` : '');
             const ledgerSync = data.ledger_sync || {};
             const ledgerSyncText = ledgerSync.mismatch
               ? `需同步：账本 ${fmt(ledgerSync.tracked_base_quantity || 0, 8)} / 账户 ${fmt(ledgerSync.account_base_balance || 0, 8)} ${data.base_asset}`
@@ -1159,9 +1195,9 @@ HTML = """<!doctype html>
             document.getElementById('ledgerSync').textContent = ledgerSyncText;
             const sizing = data.position_sizing || {};
             document.getElementById('lots').textContent = `${(data.open_lots || []).length} 批未平，当前新单约 ${fmt(sizing.order_quote_size || 0, 2)} ${data.quote_asset}，最大持仓约 ${fmt(sizing.max_position_quote || 0, 2)} ${data.quote_asset}`;
-            document.getElementById('profitBrief').textContent = `已实现 ${fmt(data.realized_pnl || 0, 4)}，未平浮动 ${fmt(data.unrealized_lot_pnl || 0, 4)} ${data.quote_asset}`;
+            document.getElementById('profitBrief').textContent = `已实现 ${fmt(data.realized_pnl || 0, 2)}，未平浮动 ${fmt(data.unrealized_lot_pnl || 0, 2)} ${data.quote_asset}`;
             const feeSummary = data.fee_summary || {};
-            document.getElementById('fees').textContent = `未平 ${fmt(feeSummary.open_fee_quote || 0, 6)} / 已平 ${fmt(feeSummary.closed_fee_quote || 0, 6)} / 合计 ${fmt(feeSummary.total_fee_quote || 0, 6)} ${data.quote_asset}`;
+            document.getElementById('fees').textContent = `未平 ${fmt(feeSummary.open_fee_quote || 0, 2)} / 已平 ${fmt(feeSummary.closed_fee_quote || 0, 2)} / 合计 ${fmt(feeSummary.total_fee_quote || 0, 2)} ${data.quote_asset}`;
         document.getElementById('buyStatus').textContent = data.risk && data.risk.allow_buy ? `允许自动买入，参考价 ${fmt(data.reference_price, 2)}` : `暂停普通买入：${zhReason(data.risk ? data.risk.reason : data.reason)}`;
         const defensive = data.defensive_mode || {};
         const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.map(zhReason).join(' / ') : '未触发';
@@ -1171,6 +1207,16 @@ HTML = """<!doctype html>
         document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'}；买入线 ${fmt(swing.buy_price || 0, 2)}，目标线 ${fmt(swing.sell_price || 0, 2)}；已用 ${fmt(swing.position_quote || 0, 2)} / ${fmt(swing.allocation_quote || 0, 2)} ${data.quote_asset}`;
         const scalp = data.defensive_scalp || {};
         document.getElementById('scalp').textContent = `${scalp.enabled ? '开启' : '关闭'}；${scalp.active ? '防守期' : '等待防守'}，${scalp.range_bound ? '可吃小震荡' : '暂不适合'}；单笔约 ${fmt(scalp.order_quote_size || 0, 2)}，已用 ${fmt(scalp.position_quote || 0, 2)} / ${fmt(scalp.allocation_quote || 0, 2)} ${data.quote_asset}`;
+        const summary = data.strategy_summary || {};
+        document.getElementById('stratTP').textContent = fmt((summary.take_profit_pct || 0) * 100, 2) + '%';
+        document.getElementById('stratGrid').textContent = fmt((summary.grid_step_pct || 0) * 100, 2) + '%';
+        const sizingEl = document.getElementById('stratSizing');
+        sizingEl.textContent = summary.auto_position_sizing ? '自动分档' : '手动分档';
+        sizingEl.className = 'strat-value ' + (summary.auto_position_sizing ? 'strat-on' : '');
+        const defEl = document.getElementById('stratDefensive');
+        defEl.textContent = summary.defensive_mode ? '已开启' : '已关闭';
+        defEl.className = 'strat-value ' + (summary.defensive_mode ? 'strat-on' : 'strat-off');
+        document.getElementById('stratMaxLoss').textContent = fmt(summary.max_floating_loss_quote || 0, 2) + ' ' + data.quote_asset;
         document.getElementById('error').textContent = '--';
         updateMascotMarket(data);
         drawChart(data.price_history || [], data.reference_price, data.trades || []);
@@ -1209,19 +1255,27 @@ HTML = """<!doctype html>
     refresh();
     setInterval(refresh, 5000);
     window.addEventListener('resize', () => drawChart(chartPoints, chartReference, chartTrades));
+    function setActiveRange(range) {
+      activeRange = range;
+      chartZoom = { start: 0, end: 1 };
+      document.querySelectorAll('.range-tabs button').forEach(item => item.classList.toggle('active', item.dataset.range === range));
+      document.getElementById('chartLabel').textContent = rangeLabels[range] || range;
+      refresh();
+    }
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
-      const box = canvas.getBoundingClientRect();
-      const anchor = Math.max(0, Math.min(1, (event.clientX - box.left - 66) / Math.max(box.width - 120, 1)));
-      const width = chartZoom.end - chartZoom.start;
-      const factor = event.deltaY < 0 ? 0.78 : 1.28;
-      const nextWidth = Math.max(0.08, Math.min(1, width * factor));
-      let nextStart = chartZoom.start + (width - nextWidth) * anchor;
-      let nextEnd = nextStart + nextWidth;
-      if (nextStart < 0) { nextEnd -= nextStart; nextStart = 0; }
-      if (nextEnd > 1) { nextStart -= nextEnd - 1; nextEnd = 1; }
-      chartZoom = { start: Math.max(0, nextStart), end: Math.min(1, nextEnd) };
-      drawChart(chartPoints, chartReference, chartTrades);
+      if (rangeWheelLocked) return;
+      rangeWheelLocked = true;
+      setTimeout(() => { rangeWheelLocked = false; }, 260);
+      if (activeRange === 'minute') {
+        setActiveRange('5m');
+        return;
+      }
+      let index = rangeOrder.indexOf(activeRange);
+      if (index < 0) index = 0;
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.max(0, Math.min(rangeOrder.length - 1, index + direction));
+      if (nextIndex !== index) setActiveRange(rangeOrder[nextIndex]);
     }, { passive: false });
     canvas.addEventListener('mousemove', event => {
       const hit = chartPointAt(event.clientX);
@@ -1234,7 +1288,7 @@ HTML = """<!doctype html>
       chartTip.style.display = 'block';
       chartTip.style.left = Math.min(box.width - 190, Math.max(10, event.clientX - box.left + 14)) + 'px';
       chartTip.style.top = Math.max(54, event.clientY - box.top - 12) + 'px';
-      chartTip.innerHTML = `<strong>${fmt(hit.point.close, 8)}</strong><br>开 ${fmt(hit.point.open ?? hit.point.close, 4)} / 高 ${fmt(hit.point.high ?? hit.point.close, 4)}<br>低 ${fmt(hit.point.low ?? hit.point.close, 4)} / 收 ${fmt(hit.point.close, 4)}<br>${new Date(hit.point.open_time).toLocaleString()}`;
+      chartTip.innerHTML = `<strong>${fmt(hit.point.close, 2)}</strong><br>开 ${fmt(hit.point.open ?? hit.point.close, 2)} / 高 ${fmt(hit.point.high ?? hit.point.close, 2)}<br>低 ${fmt(hit.point.low ?? hit.point.close, 2)} / 收 ${fmt(hit.point.close, 2)}<br>${new Date(hit.point.open_time).toLocaleString()}`;
     });
     canvas.addEventListener('mouseleave', () => {
       chartTip.style.display = 'none';
@@ -1244,6 +1298,14 @@ HTML = """<!doctype html>
     document.getElementById('tradeNext').addEventListener('click', () => { tradePage += 1; renderTrades(); });
     document.getElementById('closedPrev').addEventListener('click', () => { closedPage = Math.max(0, closedPage - 1); renderClosedLots(); });
     document.getElementById('closedNext').addEventListener('click', () => { closedPage += 1; renderClosedLots(); });
+    document.getElementById('openPrev').addEventListener('click', () => {
+      openPage = Math.max(0, openPage - 1);
+      renderOpenLots(latestOpenLots, latestOpenPrice, latestPendingOrders);
+    });
+    document.getElementById('openNext').addEventListener('click', () => {
+      openPage += 1;
+      renderOpenLots(latestOpenLots, latestOpenPrice, latestPendingOrders);
+    });
     document.getElementById('bulkAutoOn').addEventListener('click', () => bulkAutoSell(true));
     document.getElementById('bulkAutoOff').addEventListener('click', () => bulkAutoSell(false));
     document.getElementById('bulkMarketSell').addEventListener('click', () => bulkMarketSell());
@@ -1259,7 +1321,7 @@ HTML = """<!doctype html>
           take_profits: document.getElementById('backtestProfits').value.trim()
         });
         renderBacktest(data);
-        document.getElementById('backtestStatus').textContent = `完成，初始资金 ${fmt(data.initial_quote || 0, 4)} USDT`;
+        document.getElementById('backtestStatus').textContent = `完成，初始资金 ${fmt(data.initial_quote || 0, 2)} USDT`;
       } catch (err) {
         document.getElementById('backtestStatus').textContent = err.message || String(err);
       }
@@ -1516,12 +1578,7 @@ HTML = """<!doctype html>
     setTheme(localStorage.getItem('dashboardTheme') || 'day');
     setMascotVisible(localStorage.getItem('dashboardMascot') !== 'off');
     document.querySelectorAll('.range-tabs button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        activeRange = btn.dataset.range;
-        chartZoom = { start: 0, end: 1 };
-        document.querySelectorAll('.range-tabs button').forEach(item => item.classList.toggle('active', item === btn));
-        refresh();
-      });
+      btn.addEventListener('click', () => setActiveRange(btn.dataset.range));
     });
   </script>
 </body>
@@ -1690,6 +1747,13 @@ class Dashboard:
                 "max_position_quote": sizing.max_position_quote,
                 "tier": sizing.tier,
                 "enabled": sizing.enabled,
+            },
+            "strategy_summary": {
+                "take_profit_pct": self.config.take_profit_pct,
+                "grid_step_pct": self.config.grid_step_pct,
+                "auto_position_sizing": self.config.auto_position_sizing,
+                "defensive_mode": self.config.defensive_mode,
+                "max_floating_loss_quote": self.config.max_floating_loss_quote,
             },
         }
 

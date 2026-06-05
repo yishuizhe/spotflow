@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.6 - 2026-06-05
+
+- Merged PR #3, adding a compact top strategy summary for take profit, grid spacing, position sizing, defensive mode, and floating-loss protection.
+- Reviewed and closed PR #2 because it made every modal action bar sticky; applied the intended behavior only to the settings modal.
+- Added mouse-wheel chart range switching across intraday, 5m, 15m, 1h, 4h, daily, and weekly views with synchronized range tabs.
+- Reduced unused space in the top dashboard and reorganized the main account, PnL, and trading controls into a denser layout.
+- Standardized displayed prices, quote amounts, PnL, fees, and backtest results to two decimals while preserving BTC quantity precision.
+- Added open-lot pagination, kept all four desktop lot actions on one row, and moved the mascot further left.
+- Added `CHANGELOG.md` to the deployment archive so server-side release notes stay synchronized with the deployed code.
+
 ## v1.0.5 - 2026-06-05
 
 - Merged and hardened PR #1 by R0A1NG, adding an optional 24-hour remember-me login cache.
