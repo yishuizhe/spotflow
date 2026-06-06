@@ -5,7 +5,7 @@ import os
 import smtplib
 import argparse
 import calendar
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from email.message import EmailMessage
 from email.utils import formataddr
 from pathlib import Path
@@ -17,13 +17,14 @@ from .config import AgentConfig
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Send trading email report")
-    parser.add_argument("--period", choices=["day", "week", "month"], default="day")
+    parser.add_argument("--period", choices=["auto", "day", "week", "month"], default="auto")
     parser.add_argument("--only-last-day", action="store_true", help="Only send if today is the last day of the month in Asia/Shanghai.")
     args = parser.parse_args()
 
     config = AgentConfig.from_env()
     if args.only_last_day and not _is_month_end():
         return
+    period = _report_period_for_date() if args.period == "auto" else args.period
 
     dashboard = Dashboard(
         config,
@@ -32,7 +33,7 @@ def main() -> None:
         Path(f"data/grid_state_{config.symbol}.json"),
     )
     status = dashboard.status("day")
-    report = build_report(status, args.period)
+    report = build_report(status, period)
     sender = os.getenv("SMTP_USERNAME", "")
     recipient = os.getenv("REPORT_RECIPIENT", "")
     if not sender or not recipient:
@@ -83,14 +84,14 @@ def _text(report: dict) -> str:
             report["title"],
             f"周期: {report['date_label']}",
             f"交易对: {status.get('symbol')}",
-            f"价格: {status.get('price')}",
-            f"总资产估值: {status.get('value_quote')} {status.get('quote_asset')}",
-            f"BTC持仓: {status.get('base_balance')} {status.get('base_asset')}",
-            f"USDT余额: {status.get('quote_balance')} {status.get('quote_asset')}",
-            f"本周期已实现利润: {report['period_realized']} {status.get('quote_asset')}",
-            f"累计已实现利润: {status.get('realized_pnl')} {status.get('quote_asset')}",
-            f"未实现批次盈亏: {status.get('unrealized_lot_pnl')} {status.get('quote_asset')}",
-            f"总估值盈亏: {status.get('pnl_quote')} {status.get('quote_asset')}",
+            f"价格: {_fmt(status.get('price'))}",
+            f"总资产估值: {_money_plain(float(status.get('value_quote') or 0), status.get('quote_asset', 'USDT'))}",
+            f"BTC持仓: {_fmt(status.get('base_balance'))} {status.get('base_asset')}",
+            f"USDT余额: {_money_plain(float(status.get('quote_balance') or 0), status.get('quote_asset', 'USDT'))}",
+            f"本周期已实现利润: {_money(float(report['period_realized']), status.get('quote_asset', 'USDT'))}",
+            f"累计已实现利润: {_money(float(status.get('realized_pnl') or 0), status.get('quote_asset', 'USDT'))}",
+            f"未实现批次盈亏: {_money(float(status.get('unrealized_lot_pnl') or 0), status.get('quote_asset', 'USDT'))}",
+            f"总估值盈亏: {_money(float(status.get('pnl_quote') or 0), status.get('quote_asset', 'USDT'))}",
             f"本周期交易次数: {report['trade_count']}",
             f"本周期已平批次: {report['closed_count']}",
             f"当前未平批次: {report['open_count']}",
@@ -125,7 +126,7 @@ def _html(report: dict) -> str:
         {_card("累计已实现", _money(realized, quote), realized >= 0)}
         {_card("总估值盈亏", _money(pnl, quote), pnl >= 0)}
         {_card("未实现批次", _money(unrealized, quote), unrealized >= 0)}
-        {_card("BTC 持仓", f"{_fmt(status.get('base_balance'), 8)} {status.get('base_asset', 'BTC')}")}
+        {_card("BTC 持仓", f"{_fmt(status.get('base_balance'))} {status.get('base_asset', 'BTC')}")}
         {_card("USDT 余额", _money_plain(float(status.get("quote_balance") or 0), quote))}
       </div>
       <div style="margin-top:18px;padding:14px;border-radius:10px;background:#eef6ff;">
@@ -145,7 +146,7 @@ def _html(report: dict) -> str:
 
 
 def _card(label: str, value: str, positive: bool | None = None) -> str:
-    color = "#17212b" if positive is None else ("#059669" if positive else "#e11d48")
+    color = "#17212b" if positive is None else ("#e11d48" if positive else "#059669")
     return f"""
     <div style="border:1px solid #e5ebf2;border-radius:10px;padding:14px;background:#fbfdff;">
       <div style="color:#687789;font-size:12px;margin-bottom:8px;">{label}</div>
@@ -171,19 +172,28 @@ def _table(title: str, headers: list[str], rows: list[list[str]]) -> str:
     """
 
 
-def _fmt(value, digits: int = 6) -> str:
+def _fmt(value, digits: int = 2) -> str:
     try:
-        return f"{float(value):,.{digits}f}".rstrip("0").rstrip(".")
+        return f"{float(value):,.{digits}f}"
     except (TypeError, ValueError):
         return "--"
 
 
 def _money(value: float, quote: str) -> str:
-    return f"{value:+.6f} {quote}"
+    return f"{value:+,.2f} {quote}"
 
 
 def _money_plain(value: float, quote: str) -> str:
-    return f"{value:,.6f} {quote}"
+    return f"{value:,.2f} {quote}"
+
+
+def _report_period_for_date(today: date | None = None) -> str:
+    current = today or datetime.now(_local_tz()).date()
+    if current.day == calendar.monthrange(current.year, current.month)[1]:
+        return "month"
+    if current.weekday() == 6:
+        return "week"
+    return "day"
 
 
 def _period_window(period: str) -> tuple[datetime, datetime, str, str]:

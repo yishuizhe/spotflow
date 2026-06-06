@@ -1,10 +1,10 @@
 [Unit]
-Description=Send Binance Spot Live Agent daily email report
+Description=Send the highest-priority Binance Spot Live Agent email report
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/binance-testnet-agent
 EnvironmentFile=/opt/binance-testnet-agent/.env
-ExecStart=/usr/bin/python3 -m binance_testnet_agent.email_report --period day
+ExecStart=/usr/bin/python3 -m binance_testnet_agent.email_report --period auto
 User=ubuntu
 Group=ubuntu

@@ -1,6 +1,6 @@
 # Binance Spot Live Agent
 
-当前版本：`v1.0.8`
+当前版本：`v1.0.9`
 
 一个默认连接币安现货实盘、但示例配置交易开关默认关闭的小本金网格交易 agent。首次部署或分享给他人学习时建议保持：
 
@@ -402,18 +402,16 @@ Web 看板也内置了“策略回测”：
 
 ## 邮件交易报告
 
-服务器会发送实盘交易报告到 `REPORT_RECIPIENT`：
+服务器每天北京时间 `18:00` 只发送一封实盘交易报告到 `REPORT_RECIPIENT`：
 
-- 日报：每天北京时间 `18:00`
-- 周报：每周日北京时间 `18:00`
-- 月报：每月最后一天北京时间 `18:00`
+- 每月最后一天发送月报，不再发送当天周报或日报。
+- 其他周日发送周报，不再发送当天日报。
+- 其余日期发送日报。
 
 systemd 使用 UTC 时间，所以北京时间 `18:00` 对应 `10:00 UTC`。
 
 ```bash
 systemctl status binance-testnet-report.timer
-systemctl status binance-testnet-weekly-report.timer
-systemctl status binance-testnet-monthly-report.timer
 systemctl start binance-testnet-report.service
 ```
 
@@ -457,6 +455,13 @@ DEFENSIVE_AGED_LOT_PROFIT_PCT_2=0.0015
 - 修改会写入 `.env`，自动交易进程每轮都会重新读取配置，不需要手动重启服务。
 
 ## 更新日志
+
+### v1.0.9 - 2026-06-06
+
+- 报告调度改为每天只发送一封：月报优先于周报，周报优先于日报。
+- 停用独立周报和月报定时器，统一由每日 18:00 的报告服务判断当天报告类型。
+- 日报、周报和月报统一采用国内涨跌颜色：盈利红色、亏损绿色。
+- 邮件 HTML 与纯文本模板中的价格、余额、盈亏和持仓数量统一保留两位小数。
 
 ### v1.0.8 - 2026-06-06
 

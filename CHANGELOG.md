@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.9 - 2026-06-06
+
+- Send exactly one report at 18:00 each day, prioritizing month-end reports over weekly reports and weekly reports over daily reports.
+- Disabled the separate weekly and monthly timers and moved report-type selection into the daily report service.
+- Standardized report colors to the Chinese market convention: red for profit and green for loss.
+- Standardized prices, balances, PnL, and holdings in both HTML and plain-text templates to two decimal places.
+
 ## v1.0.8 - 2026-06-06
 
 - Replaced the misleading `繁` theme control with a clear palette icon.

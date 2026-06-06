@@ -50,16 +50,16 @@ sudo systemctl enable binance-testnet-agent
 sudo systemctl enable binance-testnet-dashboard
 sudo systemctl enable --now binance-testnet-backup.timer
 sudo systemctl enable --now binance-testnet-report.timer
-sudo systemctl enable --now binance-testnet-weekly-report.timer
-sudo systemctl enable --now binance-testnet-monthly-report.timer
+sudo systemctl disable --now binance-testnet-weekly-report.timer || true
+sudo systemctl disable --now binance-testnet-monthly-report.timer || true
 sudo systemctl restart binance-testnet-agent
 sudo systemctl restart binance-testnet-dashboard
 sudo systemctl --no-pager --full status binance-testnet-agent
 sudo systemctl --no-pager --full status binance-testnet-dashboard
 sudo systemctl --no-pager --full status binance-testnet-backup.timer
 sudo systemctl --no-pager --full status binance-testnet-report.timer
-sudo systemctl --no-pager --full status binance-testnet-weekly-report.timer
-sudo systemctl --no-pager --full status binance-testnet-monthly-report.timer
+sudo systemctl --no-pager --full is-enabled binance-testnet-weekly-report.timer || true
+sudo systemctl --no-pager --full is-enabled binance-testnet-monthly-report.timer || true
 REMOTE
 
 rm -f "$TMP_ARCHIVE"
