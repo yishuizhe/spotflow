@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.11 - 2026-06-06
+
+- Renamed the browser title to `SpotFlow · 现货量化助手` and set the iOS home-screen name to `SpotFlow`.
+- Updated the visible dashboard brand to `SpotFlow` with the subtitle `现货量化交易看板`.
+- Added dedicated 180px Apple Touch Icon plus 192px and 512px PNG web app icons.
+- Added a web app manifest and iOS standalone metadata so Safari no longer falls back to a gray `B` icon.
+
 ## v1.0.10 - 2026-06-06
 
 - Reduced the floating utility rail and icon sizes and moved the rail from mid-page to the bottom-right corner.
