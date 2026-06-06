@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,19 +15,19 @@ class SQLiteJsonListStore:
         self.db_path = legacy_path.with_suffix(".sqlite3")
 
     def load(self) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             self._ensure(conn)
             return self._load_unlocked(conn)
 
     def save(self, rows: list[dict[str, Any]]) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             self._ensure(conn)
             conn.execute("BEGIN IMMEDIATE")
             self._save_unlocked(conn, rows)
             conn.commit()
 
     def update(self, mutator: Callable[[list[dict[str, Any]]], Any]) -> Any:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             self._ensure(conn)
             conn.execute("BEGIN IMMEDIATE")
             rows = self._load_unlocked(conn)

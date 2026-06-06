@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.7 - 2026-06-06
+
+- Reduced the default dashboard width and added a compact/wide layout toggle that preserves space for the mascot and utility rail.
+- Rebuilt the right-side controls as a vertical utility rail for themes, dark mode, layout width, settings, and scroll-to-top.
+- Replaced every native browser prompt, confirm, and alert with an in-page action dialog.
+- Fixed the settings save button so its loading state always resets, including reload failures.
+- Made remembered logins enter immediately and validate through the first real API request instead of a separate blocking login request.
+- Expanded mascot help coverage across dashboard actions, table headers, account summaries, strategy labels, and settings.
+- Added SQLite-backed comments, author-verified replies, optional danmaku display, speed controls, and hover-to-pause behavior.
+- Added mascot image cache versioning, automatic retry, and a readable fallback for failed image loads.
+- Closed SQLite connections deterministically after each storage operation to prevent resource accumulation during long-running dashboard use.
+- Return a structured JSON status error when the upstream market connection drops unexpectedly instead of aborting the HTTP response.
+
 ## v1.0.6 - 2026-06-05
 
 - Merged PR #3, adding a compact top strategy summary for take profit, grid spacing, position sizing, defensive mode, and floating-loss protection.
