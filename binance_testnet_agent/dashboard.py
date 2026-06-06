@@ -260,6 +260,9 @@ HTML = """<!doctype html>
     .dock-rail { display: grid; gap: 8px; pointer-events: auto; }
     .dock-fab { width: 48px; height: 48px; border-radius: 10px; border: 0; background: color-mix(in srgb, var(--accent) 84%, #38bdf8); color: #fff; box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 24%, transparent); cursor: pointer; font-size: 21px; font-weight: 900; pointer-events: auto; transition: transform .16s ease, filter .16s ease; }
     .dock-fab:hover { transform: translateX(-3px); filter: brightness(1.06); }
+    .theme-icon { position: relative; display: inline-block; width: 23px; height: 23px; border: 3px solid #fff; border-radius: 50%; }
+    .theme-icon::before { content: ""; position: absolute; width: 6px; height: 6px; left: 3px; top: 3px; border-radius: 50%; background: #facc15; box-shadow: 8px 0 #fb7185, 0 8px #34d399; }
+    .theme-icon::after { content: ""; position: absolute; right: -4px; bottom: -3px; width: 9px; height: 7px; border-radius: 0 0 9px 9px; background: inherit; transform: rotate(-35deg); }
     body[data-theme="night"] .dock-fab { color: #111827; }
     .theme-drawer { position: absolute; right: 58px; top: 50%; width: min(320px, calc(100vw - 92px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateY(-50%) translateX(10px) scale(.98); transform-origin: center right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
     .floating-dock.open .theme-drawer { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); pointer-events: auto; }
@@ -643,8 +646,7 @@ HTML = """<!doctype html>
   <aside class="floating-dock" id="themeDock">
     <div class="theme-drawer" id="themeDrawer">
       <div class="theme-head">
-        <span>主题与设置</span>
-        <button class="secondary-button" id="openSettingsFloat" data-help="打开系统设置，可以修改密码、邮件、资金池、风控和策略参数。">系统设置</button>
+        <span>主题外观</span>
       </div>
       <div class="theme-grid">
         <button class="theme-chip" data-theme-choice="day">白天</button>
@@ -660,7 +662,7 @@ HTML = """<!doctype html>
       <button class="secondary-button theme-toggle" id="mascotToggle">隐藏看板助手</button>
     </div>
     <div class="dock-rail">
-      <button class="dock-fab" id="themeFab" title="主题" data-help="打开主题选择和看板助手显示设置。">繁</button>
+      <button class="dock-fab" id="themeFab" title="主题" aria-label="主题" data-help="打开主题选择和看板助手显示设置。"><span class="theme-icon" aria-hidden="true"></span></button>
       <button class="dock-fab" id="quickTheme" title="明暗模式" data-help="在白天主题和交易所深色主题之间快速切换。">◐</button>
       <button class="dock-fab" id="layoutToggle" title="页面宽度" data-help="在紧凑宽度和宽屏布局之间切换，默认使用不遮挡助手的紧凑宽度。">↔</button>
       <button class="dock-fab" id="openSettingsDock" title="系统设置" data-help="打开系统设置，管理安全、通知、资金池、风控和策略。">⚙</button>
@@ -1807,11 +1809,6 @@ HTML = """<!doctype html>
     document.addEventListener('click', event => {
       const dock = document.getElementById('themeDock');
       if (!dock.contains(event.target)) dock.classList.remove('open');
-    });
-    document.getElementById('openSettingsFloat').addEventListener('click', event => {
-      event.stopPropagation();
-      document.getElementById('themeDock').classList.remove('open');
-      openSettingsModal();
     });
     document.getElementById('openSettingsDock').addEventListener('click', event => {
       event.stopPropagation();

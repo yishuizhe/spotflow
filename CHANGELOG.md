@@ -1,9 +1,15 @@
 # Changelog
 
+## v1.0.8 - 2026-06-06
+
+- Replaced the misleading `繁` theme control with a clear palette icon.
+- Removed the duplicate system settings action from the theme drawer; the utility rail gear is now the single settings entry.
+
 ## v1.0.7 - 2026-06-06
 
 - Reduced the default dashboard width and added a compact/wide layout toggle that preserves space for the mascot and utility rail.
 - Rebuilt the right-side controls as a vertical utility rail for themes, dark mode, layout width, settings, and scroll-to-top.
+- Replaced the misleading Chinese-character theme button with a palette icon and removed the duplicate settings action from the theme drawer.
 - Replaced every native browser prompt, confirm, and alert with an in-page action dialog.
 - Fixed the settings save button so its loading state always resets, including reload failures.
 - Made remembered logins enter immediately and validate through the first real API request instead of a separate blocking login request.
