@@ -137,6 +137,46 @@ class DashboardOrderTest(unittest.TestCase):
                     else:
                         os.environ[key] = value
 
+    def test_comments_are_stored_in_sqlite_and_author_replies_are_marked(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                comment = dashboard.add_comment("访客", "页面很好用")["comment"]
+                reply = dashboard.add_comment("ignored", "谢谢反馈", comment["id"], is_author=True)["comment"]
+
+                self.assertEqual(len(dashboard.comments()), 2)
+                self.assertEqual(reply["parent_id"], comment["id"])
+                self.assertEqual(reply["name"], "作者")
+                self.assertTrue(reply["is_author"])
+                self.assertTrue(Path("data/comments.sqlite3").exists())
+            finally:
+                os.chdir(old_cwd)
+
+    def test_comment_validation_rejects_empty_and_missing_parent(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                self.assertIn("error", dashboard.add_comment("", ""))
+                self.assertIn("error", dashboard.add_comment("作者", "回复", "missing", is_author=True))
+            finally:
+                os.chdir(old_cwd)
+
 
 if __name__ == "__main__":
     unittest.main()

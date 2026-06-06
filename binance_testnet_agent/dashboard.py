@@ -5,6 +5,7 @@ import base64
 import hmac
 import json
 import os
+import secrets
 from dataclasses import asdict
 from datetime import datetime
 from decimal import Decimal
@@ -160,7 +161,8 @@ HTML = """<!doctype html>
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; transition: background .28s ease, color .28s ease; }
     body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: var(--page-art); }
-    main { position: relative; max-width: 1440px; margin: 0 auto; padding: 22px; }
+    main { position: relative; width: min(1200px, calc(100% - 260px)); margin: 0 auto; padding: 22px 0 40px; }
+    body.layout-wide main { width: min(1440px, calc(100% - 120px)); }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 14px; }
     h1 { margin: 0; font-size: 30px; font-weight: 760; letter-spacing: 0; }
     .muted { color: var(--muted); font-size: 14px; }
@@ -254,11 +256,13 @@ HTML = """<!doctype html>
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
     .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent-2) 12%, transparent); color: var(--good); font-weight: 750; }
-    .floating-dock { position: fixed; right: 18px; bottom: 18px; z-index: 18; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
-    .dock-fab { width: 54px; height: 54px; border-radius: 999px; border: 1px solid var(--line); background: var(--button); color: #fff; box-shadow: var(--shadow); cursor: pointer; font-weight: 900; pointer-events: auto; }
+    .floating-dock { position: fixed; right: 18px; top: 50%; z-index: 18; display: flex; flex-direction: row; align-items: center; gap: 10px; pointer-events: none; transform: translateY(-50%); }
+    .dock-rail { display: grid; gap: 8px; pointer-events: auto; }
+    .dock-fab { width: 48px; height: 48px; border-radius: 10px; border: 0; background: color-mix(in srgb, var(--accent) 84%, #38bdf8); color: #fff; box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 24%, transparent); cursor: pointer; font-size: 21px; font-weight: 900; pointer-events: auto; transition: transform .16s ease, filter .16s ease; }
+    .dock-fab:hover { transform: translateX(-3px); filter: brightness(1.06); }
     body[data-theme="night"] .dock-fab { color: #111827; }
-    .theme-drawer { width: min(320px, calc(100vw - 36px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateY(10px) scale(.98); transform-origin: bottom right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
-    .floating-dock.open .theme-drawer { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+    .theme-drawer { position: absolute; right: 58px; top: 50%; width: min(320px, calc(100vw - 92px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateY(-50%) translateX(10px) scale(.98); transform-origin: center right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+    .floating-dock.open .theme-drawer { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); pointer-events: auto; }
     .theme-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 850; }
     .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
@@ -268,6 +272,9 @@ HTML = """<!doctype html>
     .mascot.hidden { display: none; }
     .mascot-figure { width: 112px; height: 168px; position: relative; filter: drop-shadow(0 18px 28px rgba(15,23,42,.18)); }
     .mascot-figure img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .mascot-fallback { display: none; place-items: center; width: 100%; height: 100%; border-radius: 8px 8px 0 0; background: var(--panel); border: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: center; padding: 10px; }
+    .mascot-figure.failed img { display: none; }
+    .mascot-figure.failed .mascot-fallback { display: grid; }
     .mascot-bubble { max-width: 270px; margin-bottom: 52px; padding: 10px 12px; border-radius: 8px; background: var(--panel-strong); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
     .mascot.speaking .mascot-bubble { opacity: 1; transform: translateY(0); }
     .notice-toast { position: fixed; left: 50%; top: 22px; z-index: 40; width: min(520px, calc(100vw - 28px)); padding: 14px 48px 14px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-strong); color: var(--text); box-shadow: 0 22px 55px rgba(15,23,42,.22); opacity: 0; transform: translate(-50%, -18px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; font-weight: 800; line-height: 1.5; }
@@ -278,14 +285,37 @@ HTML = """<!doctype html>
     .lot-id { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
     .lot-actions { display: grid; grid-template-columns: repeat(4, max-content); gap: 6px; align-items: center; }
     .lot-actions button { min-height: 34px; padding: 0 10px; white-space: nowrap; font-size: 12px; }
-    @media (max-width: 980px) {
-      main { width: 100%; overflow-x: hidden; }
+    .dialog-message { color: var(--muted); line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap; }
+    .dialog-fields { display: grid; gap: 12px; }
+    .comments-panel { margin-top: 14px; }
+    .comment-form { display: grid; grid-template-columns: 180px 1fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+    .comment-form textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--line); border-radius: 7px; padding: 10px; font: inherit; background: var(--panel-strong); color: var(--text); }
+    .comment-list { display: grid; gap: 10px; margin-top: 16px; }
+    .comment-item { padding: 13px 14px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 92%, transparent); }
+    .comment-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+    .comment-name { color: var(--text); font-weight: 850; }
+    .author-badge { color: #fff; background: var(--accent); border-radius: 999px; padding: 2px 7px; font-weight: 800; }
+    .comment-body { margin-top: 7px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .comment-replies { display: grid; gap: 8px; margin: 10px 0 0 24px; }
+    .comment-reply { border-left: 3px solid var(--accent); padding: 8px 10px; background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 0 6px 6px 0; }
+    .comment-actions { margin-left: auto; }
+    .comment-actions button { min-height: 28px; padding: 0 9px; font-size: 12px; }
+    .danmaku-layer { position: fixed; inset: 74px 0 auto; height: 180px; z-index: 16; overflow: hidden; pointer-events: none; }
+    .danmaku-layer.hidden { display: none; }
+    .danmaku-item { position: absolute; right: -50vw; max-width: 520px; padding: 7px 12px; border-radius: 999px; color: #fff; background: rgba(15,23,42,.72); box-shadow: 0 6px 18px rgba(15,23,42,.16); font-size: 13px; white-space: nowrap; pointer-events: auto; animation: danmaku-move var(--danmaku-duration, 18s) linear forwards; }
+    .danmaku-item:hover { animation-play-state: paused; background: rgba(15,23,42,.92); }
+    @keyframes danmaku-move { from { transform: translateX(0); } to { transform: translateX(calc(-100vw - 120%)); } }
+    @media (max-width: 1100px) {
+      main { width: 100%; padding: 18px; overflow-x: hidden; }
+      body.layout-wide main { width: 100%; }
       .top-board { grid-template-columns: 1fr; }
       .capital-stack { display: contents; }
       .split { grid-template-columns: 1fr; }
       .inline-controls { grid-template-columns: 1fr 1fr; }
       header { display: block; }
       .hero-price { font-size: 38px; }
+      .mascot-figure { width: 70px; height: 105px; }
+      .mascot-bubble { max-width: 190px; margin-bottom: 38px; font-size: 11px; }
       .table-scroll { overflow-x: visible; }
       table:not(.account-table) { display: block; margin-top: 10px; }
       table:not(.account-table) thead { display: none; }
@@ -329,14 +359,17 @@ HTML = """<!doctype html>
       .modal-actions { flex-direction: column-reverse; }
       .modal-actions button { width: 100%; }
       .settings-modal-actions { bottom: -14px; margin: 14px -14px -14px; padding: 12px 14px; }
-      .floating-dock { right: 12px; bottom: 12px; }
-      .dock-fab { width: 48px; height: 48px; font-size: 12px; }
-      .theme-drawer { width: min(300px, calc(100vw - 24px)); }
+      .floating-dock { right: 8px; top: 50%; bottom: auto; transform: translateY(-50%); }
+      .dock-rail { grid-auto-flow: row; gap: 6px; }
+      .dock-fab { width: 40px; height: 40px; font-size: 17px; border-radius: 9px; }
+      .theme-drawer { right: 48px; width: min(300px, calc(100vw - 68px)); }
       .mascot { left: 2px; bottom: 0; gap: 6px; }
-      .mascot-figure { width: 70px; height: 105px; }
-      .mascot-bubble { max-width: 176px; margin-bottom: 38px; font-size: 11px; padding: 8px 9px; }
+      .mascot-figure { width: 52px; height: 78px; }
+      .mascot-bubble { max-width: 156px; margin-bottom: 28px; font-size: 10px; padding: 7px 8px; }
       .strategy-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .strat-item:last-child { grid-column: 1 / -1; }
+      .comment-form { grid-template-columns: 1fr; }
+      .danmaku-layer { top: 58px; height: 130px; }
     }
   </style>
 </head>
@@ -517,7 +550,28 @@ HTML = """<!doctype html>
       </table>
       <div class="pager"><button id="closedPrev">上一页</button><span id="closedPage">1 / 1</span><button id="closedNext">下一页</button></div>
     </section>
+    <section class="panel comments-panel" id="comments">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">交流与评论</div>
+          <div class="muted">分享使用体验、策略想法或问题；评论会同步显示为弹幕。</div>
+        </div>
+        <div class="button-stack">
+          <button class="secondary-button" id="danmakuToggle">关闭弹幕</button>
+          <select id="danmakuSpeed" class="secondary-button" aria-label="弹幕速度">
+            <option value="slow">慢速</option><option value="normal" selected>正常</option><option value="fast">快速</option>
+          </select>
+        </div>
+      </div>
+      <div class="comment-form">
+        <div class="field"><label>昵称</label><input id="commentName" maxlength="20" placeholder="怎么称呼你"></div>
+        <div class="field"><label>评论内容</label><textarea id="commentMessage" maxlength="300" placeholder="说点具体的，会更容易得到有价值的回复。"></textarea></div>
+        <button class="action-button" id="commentSubmit">发表评论</button>
+      </div>
+      <div class="comment-list" id="commentList"><div class="muted">正在读取评论...</div></div>
+    </section>
   </main>
+  <div class="danmaku-layer" id="danmakuLayer" aria-hidden="true"></div>
   <div class="modal" id="settingsModal">
     <div class="modal-panel">
       <div class="modal-head">
@@ -571,6 +625,17 @@ HTML = """<!doctype html>
       <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
     </div>
   </div>
+  <div class="modal" id="actionModal">
+    <div class="modal-panel" style="width:min(500px,100%)">
+      <div class="modal-head"><h2 id="actionTitle">操作确认</h2><button class="secondary-button" id="actionClose">关闭</button></div>
+      <div class="dialog-message" id="actionMessage"></div>
+      <div class="dialog-fields" id="actionFields"></div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="actionCancel">取消</button>
+        <button class="action-button" id="actionConfirm">确认</button>
+      </div>
+    </div>
+  </div>
   <div class="notice-toast" id="noticeToast" role="status" aria-live="polite">
     <span id="noticeText"></span>
     <button id="noticeClose" aria-label="关闭提示">×</button>
@@ -594,11 +659,18 @@ HTML = """<!doctype html>
       </div>
       <button class="secondary-button theme-toggle" id="mascotToggle">隐藏看板助手</button>
     </div>
-    <button class="dock-fab" id="themeFab" data-help="打开主题、助手和系统设置。">设置</button>
+    <div class="dock-rail">
+      <button class="dock-fab" id="themeFab" title="主题" data-help="打开主题选择和看板助手显示设置。">繁</button>
+      <button class="dock-fab" id="quickTheme" title="明暗模式" data-help="在白天主题和交易所深色主题之间快速切换。">◐</button>
+      <button class="dock-fab" id="layoutToggle" title="页面宽度" data-help="在紧凑宽度和宽屏布局之间切换，默认使用不遮挡助手的紧凑宽度。">↔</button>
+      <button class="dock-fab" id="openSettingsDock" title="系统设置" data-help="打开系统设置，管理安全、通知、资金池、风控和策略。">⚙</button>
+      <button class="dock-fab" id="scrollTop" title="回到顶部" data-help="平滑回到看板顶部。">↑</button>
+    </div>
   </aside>
   <aside class="mascot" id="mascot">
     <div class="mascot-figure">
-      <img src="/static/mascot-ai.png" alt="看板助手">
+      <img id="mascotImage" src="/static/mascot-ai.png?v=1.0.7" alt="看板助手">
+      <div class="mascot-fallback">看板助手<br>图片加载中</div>
     </div>
     <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
   </aside>
@@ -645,7 +717,7 @@ HTML = """<!doctype html>
     }
     const cachedLogin = readCachedLogin();
     let dashboardPassword = cachedLogin.password;
-    let loginValidated = false;
+    let loginValidated = Boolean(cachedLogin.password);
     let mascotBubbleTimer = null;
     let mascotMarketSaidAt = 0;
     let noticeTimer = null;
@@ -656,9 +728,7 @@ HTML = """<!doctype html>
     const ctx = canvas.getContext('2d');
     const chartTip = document.getElementById('chartTip');
     document.getElementById('loginRemember').checked = cachedLogin.remembered;
-    if (cachedLogin.remembered) {
-      document.getElementById('loginStatus').textContent = '正在验证已记住的登录信息...';
-    }
+    if (cachedLogin.password) document.getElementById('loginModal').classList.remove('open');
     function authHeaders(tradingPassword, payload) {
       const headers = { 'X-Dashboard-Password': dashboardPassword };
       if (tradingPassword) headers['X-Trading-Password'] = tradingPassword;
@@ -677,6 +747,76 @@ HTML = """<!doctype html>
       if (noticeTimer) clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => { toast.classList.remove('show'); }, duration);
     }
+    let actionResolver = null;
+    function closeActionModal(result = null) {
+      document.getElementById('actionModal').classList.remove('open');
+      if (actionResolver) {
+        const resolve = actionResolver;
+        actionResolver = null;
+        resolve(result);
+      }
+    }
+    function openActionModal({ title, message = '', fields = [], confirmText = '确认', cancelText = '取消', alertOnly = false }) {
+      document.getElementById('actionTitle').textContent = title;
+      document.getElementById('actionMessage').textContent = message;
+      document.getElementById('actionConfirm').textContent = confirmText;
+      document.getElementById('actionCancel').textContent = cancelText;
+      document.getElementById('actionCancel').style.display = alertOnly ? 'none' : '';
+      document.getElementById('actionClose').style.display = alertOnly ? 'none' : '';
+      const container = document.getElementById('actionFields');
+      container.innerHTML = '';
+      fields.forEach((field, index) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'field';
+        const label = document.createElement('label');
+        label.textContent = field.label || '';
+        const input = document.createElement(field.kind === 'select' ? 'select' : 'input');
+        input.id = `actionField${index}`;
+        if (field.kind === 'select') {
+          (field.options || []).forEach(option => {
+            const node = document.createElement('option');
+            node.value = option.value;
+            node.textContent = option.label;
+            if (String(option.value) === String(field.value ?? '')) node.selected = true;
+            input.appendChild(node);
+          });
+        } else {
+          input.type = field.type || 'text';
+          input.value = field.value ?? '';
+          input.placeholder = field.placeholder || '';
+          input.autocomplete = field.autocomplete || 'off';
+        }
+        wrap.append(label, input);
+        container.appendChild(wrap);
+      });
+      document.getElementById('actionModal').classList.add('open');
+      setTimeout(() => container.querySelector('input,select')?.focus(), 30);
+      return new Promise(resolve => { actionResolver = resolve; });
+    }
+    async function uiPrompt(message, value = '', type = 'text') {
+      const result = await openActionModal({
+        title: '请输入信息',
+        message,
+        fields: [{ label: '输入内容', value, type }],
+      });
+      return result ? result[0] : null;
+    }
+    function uiConfirm(message, title = '确认操作') {
+      return openActionModal({ title, message }).then(result => Boolean(result));
+    }
+    function uiAlert(message, title = '操作提示') {
+      return openActionModal({ title, message, confirmText: '知道了', alertOnly: true }).then(() => undefined);
+    }
+    document.getElementById('actionConfirm').addEventListener('click', () => {
+      const values = Array.from(document.querySelectorAll('#actionFields input, #actionFields select')).map(input => input.value);
+      closeActionModal(values.length ? values : ['confirmed']);
+    });
+    document.getElementById('actionCancel').addEventListener('click', () => closeActionModal(null));
+    document.getElementById('actionClose').addEventListener('click', () => closeActionModal(null));
+    document.getElementById('actionModal').addEventListener('keydown', event => {
+      if (event.key === 'Enter') document.getElementById('actionConfirm').click();
+      if (event.key === 'Escape') closeActionModal(null);
+    });
     async function apiGet(path, payload, tradingPassword) {
       const res = await fetch(path, { method: 'GET', cache: 'no-store', headers: authHeaders(tradingPassword, payload) });
       const contentType = res.headers.get('content-type') || '';
@@ -692,9 +832,12 @@ HTML = """<!doctype html>
         const plain = raw.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();
         throw new Error(plain ? `接口返回了非 JSON 内容：${plain.slice(0, 160)}` : `接口返回了非 JSON 内容，HTTP ${res.status}`);
       }
-      if (res.status === 403) {
+      if (res.status === 403 && data.error === 'not logged in') {
         loginValidated = false;
+        dashboardPassword = '';
+        clearRememberedLogin();
         document.getElementById('loginModal').classList.add('open');
+        document.getElementById('loginStatus').textContent = '登录信息已失效，请重新输入页面密码。';
       }
       if (data.error) throw new Error(data.error);
       return data;
@@ -1247,13 +1390,16 @@ HTML = """<!doctype html>
           localStorage.removeItem(loginCacheKey);
         }
         refresh();
+        loadComments();
       }
     });
     document.getElementById('loginPassword').addEventListener('keydown', event => {
       if (event.key === 'Enter') document.getElementById('loginButton').click();
     });
     refresh();
+    loadComments();
     setInterval(refresh, 5000);
+    setInterval(loadComments, 60000);
     window.addEventListener('resize', () => drawChart(chartPoints, chartReference, chartTrades));
     function setActiveRange(range) {
       activeRange = range;
@@ -1328,151 +1474,281 @@ HTML = """<!doctype html>
     });
     document.getElementById('execute').addEventListener('click', async () => {
       const enabled = !document.getElementById('execute').classList.contains('on');
-      const password = window.prompt(enabled ? '输入开关密码以开启交易' : '输入开关密码以暂停交易');
+      const password = await uiPrompt(enabled ? '输入开关密码以开启交易' : '输入开关密码以暂停交易', '', 'password');
       if (!password) return;
-      await apiGet('/api/trading', { execute_trades: enabled }, password);
+      try { await apiGet('/api/trading', { execute_trades: enabled }, password); }
+      catch (err) { await uiAlert(err.message || String(err), '操作失败'); }
       refresh();
     });
     document.getElementById('calibrate').addEventListener('click', async () => {
-      const password = window.prompt('输入开关密码以校准当前资产为新基准');
+      const password = await uiPrompt('输入开关密码以校准当前资产为新基准', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm('确认把当前总资产设为新的盈亏基准？这会让看板的较启动基准盈亏从当前值重新计算。');
+      const confirmed = await uiConfirm('确认把当前总资产设为新的盈亏基准？这会让看板的较启动基准盈亏从当前值重新计算。');
       if (!confirmed) return;
       await apiGet('/api/baseline/calibrate', {}, password);
       refresh();
     });
     document.getElementById('manualBuy').addEventListener('click', async () => {
-      const orderType = window.prompt('输入买入类型：market 市价 / limit 限价', 'market');
+      const orderType = await uiPrompt('输入买入类型：market 市价 / limit 限价', 'market');
       if (!orderType) return;
-      const quoteSize = window.prompt('输入手动买入金额（USDT）。买入后会记账，但默认不自动卖出。', '10');
+      const quoteSize = await uiPrompt('输入手动买入金额（USDT）。买入后会记账，但默认不自动卖出。', '10', 'number');
       if (!quoteSize) return;
-      const autoSellText = window.prompt('这次人工买入是否自动卖出？输入 yes/no。默认跟随设置。', manualBuyAutoSellDefault ? 'yes' : 'no');
+      const autoSellText = await uiPrompt('这次人工买入是否自动卖出？输入 yes/no。默认跟随设置。', manualBuyAutoSellDefault ? 'yes' : 'no');
       if (autoSellText === null) return;
       const autoSell = ['1', 'true', 'yes', 'y', 'on', '是', '开'].includes(autoSellText.trim().toLowerCase());
-      const targetProfitPct = window.prompt(autoSell ? '输入自动卖出目标利润百分比，例如 0.6 表示 0.6%。' : '输入参考目标利润百分比，例如 0.6 表示 0.6%。只作为参考卖价。', '0.6');
+      const targetProfitPct = await uiPrompt(autoSell ? '输入自动卖出目标利润百分比，例如 0.6 表示 0.6%。' : '输入参考目标利润百分比，例如 0.6 表示 0.6%。只作为参考卖价。', '0.6', 'number');
       if (targetProfitPct === null) return;
       let limitPrice = null;
       if (orderType.trim().toLowerCase() === 'limit') {
-        limitPrice = window.prompt('输入限价买入价格。订单成交后才会记到账本。');
+        limitPrice = await uiPrompt('输入限价买入价格。订单成交后才会记到账本。', '', 'number');
         if (!limitPrice) return;
       }
-      const password = window.prompt('输入交易开关密码以确认手动买入');
+      const password = await uiPrompt('输入交易开关密码以确认手动买入', '', 'password');
       if (!password) return;
       const isLimit = orderType.trim().toLowerCase() === 'limit';
-      const confirmed = window.confirm(isLimit ? `确认挂限价买入单：约 ${quoteSize} USDT，价格 ${limitPrice}？成交后才记账。自动卖出：${autoSell ? '是' : '否'}。` : `确认市价买入约 ${quoteSize} USDT 的 BTC，并记录为手动仓？自动卖出：${autoSell ? '是' : '否'}。`);
+      const confirmed = await uiConfirm(isLimit ? `确认挂限价买入单：约 ${quoteSize} USDT，价格 ${limitPrice}？成交后才记账。自动卖出：${autoSell ? '是' : '否'}。` : `确认市价买入约 ${quoteSize} USDT 的 BTC，并记录为手动仓？自动卖出：${autoSell ? '是' : '否'}。`);
       if (!confirmed) return;
       try {
         await apiGet(isLimit ? '/api/manual/limit-buy' : '/api/manual/buy', { quote_size: quoteSize, limit_price: limitPrice, target_profit_pct: Number(targetProfitPct) / 100, auto_sell: autoSell }, password);
-      } catch (err) { window.alert(err.message || err); return; }
+      } catch (err) { await uiAlert(err.message || String(err), '买入失败'); return; }
       refresh();
     });
     document.getElementById('externalLimitSell').addEventListener('click', async () => {
-      const quantity = window.prompt('输入要限价卖出的 BTC 数量。这个操作只给账户可用 BTC 挂单，不会关闭任何账本批次。');
+      const quantity = await uiPrompt('输入要限价卖出的 BTC 数量。这个操作只给账户可用 BTC 挂单，不会关闭任何账本批次。', '', 'number');
       if (!quantity) return;
-      const limitPrice = window.prompt('输入限价卖出价格。成交后会记录在最近订单和限价挂单里。');
+      const limitPrice = await uiPrompt('输入限价卖出价格。成交后会记录在最近订单和限价挂单里。', '', 'number');
       if (!limitPrice) return;
-      const password = window.prompt('输入交易开关密码以确认外部持仓限价卖出');
+      const password = await uiPrompt('输入交易开关密码以确认外部持仓限价卖出', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(`确认挂外部持仓限价卖出单：数量 ${quantity} BTC，价格 ${limitPrice}？这不会关闭未平批次。`);
+      const confirmed = await uiConfirm(`确认挂外部持仓限价卖出单：数量 ${quantity} BTC，价格 ${limitPrice}？这不会关闭未平批次。`);
       if (!confirmed) return;
       try { await apiGet('/api/manual/external-limit-sell', { quantity, limit_price: limitPrice }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '挂单失败'); return; }
       refresh();
     });
     async function manualSell(lotId) {
-      const password = window.prompt('输入交易开关密码以确认手动卖出');
+      const password = await uiPrompt('输入交易开关密码以确认手动卖出', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm('确认市价卖出这个未平批次，并关闭账本记录？这是实盘下单，无法撤回。');
+      const confirmed = await uiConfirm('确认市价卖出这个未平批次，并关闭账本记录？这是实盘下单，无法撤回。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/sell', { lot_id: lotId }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '卖出失败'); return; }
       refresh();
     }
     async function setLotAutoSell(lotId, enabled) {
-      const password = window.prompt(enabled ? '输入交易开关密码以开启这个批次的自动卖出' : '输入交易开关密码以取消这个批次的自动卖出');
+      const password = await uiPrompt(enabled ? '输入交易开关密码以开启这个批次的自动卖出' : '输入交易开关密码以取消这个批次的自动卖出', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(enabled ? '确认让这个批次到目标价后由脚本自动卖出？' : '确认取消这个批次的自动卖出？取消后脚本不会自动卖出它。');
+      const confirmed = await uiConfirm(enabled ? '确认让这个批次到目标价后由脚本自动卖出？' : '确认取消这个批次的自动卖出？取消后脚本不会自动卖出它。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/auto-sell', { lot_id: lotId, auto_sell: enabled }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '设置失败'); return; }
       refresh();
     }
     async function limitSell(lotId, targetPrice) {
-      const limitPrice = window.prompt('输入限价卖出价格。订单成交后才会关闭账本批次。', targetPrice || '');
+      const limitPrice = await uiPrompt('输入限价卖出价格。订单成交后才会关闭账本批次。', targetPrice || '', 'number');
       if (!limitPrice) return;
-      const password = window.prompt('输入交易开关密码以确认限价卖出');
+      const password = await uiPrompt('输入交易开关密码以确认限价卖出', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(`确认为这个批次挂限价卖出单，价格 ${limitPrice}？成交前不会关闭账本。`);
+      const confirmed = await uiConfirm(`确认为这个批次挂限价卖出单，价格 ${limitPrice}？成交前不会关闭账本。`);
       if (!confirmed) return;
       try { await apiGet('/api/manual/limit-sell', { lot_id: lotId, limit_price: limitPrice }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '挂单失败'); return; }
       refresh();
     }
     async function bulkAutoSell(enabled) {
-      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
-      const password = window.prompt(enabled ? '输入交易开关密码以一键开启所有未平批次自动卖' : '输入交易开关密码以一键关闭所有未平批次自动卖');
+      if (!latestOpenLots.length) return uiAlert('当前没有未平批次。');
+      const password = await uiPrompt(enabled ? '输入交易开关密码以一键开启所有未平批次自动卖' : '输入交易开关密码以一键关闭所有未平批次自动卖', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(`${enabled ? '开启' : '关闭'} ${latestOpenLots.length} 个未平批次的自动卖？`);
+      const confirmed = await uiConfirm(`${enabled ? '开启' : '关闭'} ${latestOpenLots.length} 个未平批次的自动卖？`);
       if (!confirmed) return;
       for (const lot of latestOpenLots) {
         const result = await apiGet('/api/manual/auto-sell', { lot_id: lot.id, auto_sell: enabled }, password);
-        if (result.error) return window.alert(result.error);
+        if (result.error) return uiAlert(result.error, '设置失败');
       }
       refresh();
     }
     async function bulkMarketSell() {
-      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
-      const password = window.prompt('输入交易开关密码以一键市价卖出所有未平批次');
+      if (!latestOpenLots.length) return uiAlert('当前没有未平批次。');
+      const password = await uiPrompt('输入交易开关密码以一键市价卖出所有未平批次', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(`确认按市价卖出 ${latestOpenLots.length} 个未平批次？这是实盘下单，无法撤回。`);
+      const confirmed = await uiConfirm(`确认按市价卖出 ${latestOpenLots.length} 个未平批次？这是实盘下单，无法撤回。`);
       if (!confirmed) return;
       for (const lot of latestOpenLots) {
         const result = await apiGet('/api/manual/sell', { lot_id: lot.id }, password);
-        if (result.error) return window.alert(result.error);
+        if (result.error) return uiAlert(result.error, '卖出失败');
       }
       refresh();
     }
     async function bulkLimitSell() {
-      if (!latestOpenLots.length) return window.alert('当前没有未平批次。');
-      const password = window.prompt('输入交易开关密码以一键限价卖出所有未平批次');
+      if (!latestOpenLots.length) return uiAlert('当前没有未平批次。');
+      const password = await uiPrompt('输入交易开关密码以一键限价卖出所有未平批次', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm(`确认按每个批次的预计卖价分别挂 ${latestOpenLots.length} 个限价卖单？`);
+      const confirmed = await uiConfirm(`确认按每个批次的预计卖价分别挂 ${latestOpenLots.length} 个限价卖单？`);
       if (!confirmed) return;
       for (const lot of latestOpenLots) {
         if (lot.pending_limit_sell_order_id) continue;
         const price = Number(lot.effective_target_price || lot.target_price || 0);
         if (!price) continue;
         const result = await apiGet('/api/manual/limit-sell', { lot_id: lot.id, limit_price: price }, password);
-        if (result.error) return window.alert(result.error);
+        if (result.error) return uiAlert(result.error, '挂单失败');
       }
       refresh();
     }
     async function cancelPendingOrder(orderId) {
-      const password = window.prompt('输入交易开关密码以取消限价挂单');
+      const password = await uiPrompt('输入交易开关密码以取消限价挂单', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm('确认取消这个限价挂单？如果已经成交，取消会失败或只取消未成交部分。');
+      const confirmed = await uiConfirm('确认取消这个限价挂单？如果已经成交，取消会失败或只取消未成交部分。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/cancel-order', { order_id: orderId }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '取消失败'); return; }
       refresh();
     }
     async function externalClose(lotId) {
-      const sellPrice = window.prompt('输入你在币安外部卖出的成交价。这个操作只同步账本，不会再次下单。');
+      const sellPrice = await uiPrompt('输入你在币安外部卖出的成交价。这个操作只同步账本，不会再次下单。', '', 'number');
       if (!sellPrice) return;
-      const quantity = window.prompt('输入卖出数量，留空表示关闭整个批次。');
+      const quantity = await uiPrompt('输入卖出数量，留空表示关闭整个批次。', '', 'number');
       if (quantity === null) return;
-      const password = window.prompt('输入交易开关密码以确认同步账本');
+      const password = await uiPrompt('输入交易开关密码以确认同步账本', '', 'password');
       if (!password) return;
-      const confirmed = window.confirm('确认只按外部成交同步这个批次？不会向币安提交新订单。');
+      const confirmed = await uiConfirm('确认只按外部成交同步这个批次？不会向币安提交新订单。');
       if (!confirmed) return;
       try { await apiGet('/api/manual/external-close', { lot_id: lotId, sell_price: sellPrice, quantity }, password); }
-      catch (err) { window.alert(err.message || err); return; }
+      catch (err) { await uiAlert(err.message || String(err), '同步失败'); return; }
       refresh();
     }
     async function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('open');
       if (!settingsLoaded) {
         try { await loadSettings(); } catch (err) { setSettingsStatus(String(err.message || err), 'error'); }
+      }
+    }
+    let latestComments = [];
+    let danmakuTimers = [];
+    function danmakuDuration() {
+      return { slow: 26, normal: 18, fast: 11 }[document.getElementById('danmakuSpeed').value] || 18;
+    }
+    function clearDanmaku() {
+      danmakuTimers.forEach(timer => clearTimeout(timer));
+      danmakuTimers = [];
+      document.getElementById('danmakuLayer').innerHTML = '';
+    }
+    function launchDanmaku(comments) {
+      clearDanmaku();
+      if (localStorage.getItem('dashboardDanmaku') === 'off') return;
+      const layer = document.getElementById('danmakuLayer');
+      const rows = (comments || []).filter(item => !item.parent_id).slice(-20);
+      rows.forEach((item, index) => {
+        const timer = setTimeout(() => {
+          const node = document.createElement('div');
+          node.className = 'danmaku-item';
+          node.style.top = `${8 + (index % 5) * 32}px`;
+          node.style.setProperty('--danmaku-duration', `${danmakuDuration()}s`);
+          node.textContent = `${item.name}：${item.message}`;
+          node.addEventListener('animationend', () => node.remove());
+          layer.appendChild(node);
+        }, index * 850);
+        danmakuTimers.push(timer);
+      });
+    }
+    function renderComments(comments) {
+      latestComments = comments || [];
+      const list = document.getElementById('commentList');
+      list.innerHTML = '';
+      const roots = latestComments.filter(item => !item.parent_id).slice().reverse();
+      if (!roots.length) {
+        list.innerHTML = '<div class="muted">还没有评论，欢迎留下第一条具体建议。</div>';
+        clearDanmaku();
+        return;
+      }
+      roots.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'comment-item';
+        const meta = document.createElement('div');
+        meta.className = 'comment-meta';
+        const name = document.createElement('span');
+        name.className = 'comment-name';
+        name.textContent = item.name;
+        meta.appendChild(name);
+        if (item.is_author) {
+          const badge = document.createElement('span');
+          badge.className = 'author-badge';
+          badge.textContent = '作者';
+          meta.appendChild(badge);
+        }
+        const time = document.createElement('span');
+        time.textContent = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+        meta.appendChild(time);
+        const actions = document.createElement('span');
+        actions.className = 'comment-actions';
+        const reply = document.createElement('button');
+        reply.className = 'secondary-button';
+        reply.textContent = '作者回复';
+        reply.addEventListener('click', () => authorReply(item.id));
+        actions.appendChild(reply);
+        meta.appendChild(actions);
+        const body = document.createElement('div');
+        body.className = 'comment-body';
+        body.textContent = item.message;
+        card.append(meta, body);
+        const replies = latestComments.filter(replyItem => replyItem.parent_id === item.id);
+        if (replies.length) {
+          const replyList = document.createElement('div');
+          replyList.className = 'comment-replies';
+          replies.forEach(replyItem => {
+            const row = document.createElement('div');
+            row.className = 'comment-reply';
+            const replyMeta = document.createElement('div');
+            replyMeta.className = 'comment-meta';
+            const replyName = document.createElement('span');
+            replyName.className = 'comment-name';
+            replyName.textContent = replyItem.name;
+            replyMeta.appendChild(replyName);
+            if (replyItem.is_author) {
+              const badge = document.createElement('span');
+              badge.className = 'author-badge';
+              badge.textContent = '作者';
+              replyMeta.appendChild(badge);
+            }
+            const replyTime = document.createElement('span');
+            replyTime.textContent = replyItem.created_at ? new Date(replyItem.created_at).toLocaleString() : '';
+            replyMeta.appendChild(replyTime);
+            const replyBody = document.createElement('div');
+            replyBody.className = 'comment-body';
+            replyBody.textContent = replyItem.message;
+            row.append(replyMeta, replyBody);
+            replyList.appendChild(row);
+          });
+          card.appendChild(replyList);
+        }
+        list.appendChild(card);
+      });
+      launchDanmaku(latestComments);
+    }
+    async function loadComments() {
+      if (!loginValidated) return;
+      try {
+        const data = await apiGet('/api/comments');
+        renderComments(data.comments || []);
+      } catch (err) {
+        const list = document.getElementById('commentList');
+        list.innerHTML = '';
+        const message = document.createElement('div');
+        message.className = 'muted';
+        message.textContent = `评论读取失败：${String(err.message || err)}`;
+        list.appendChild(message);
+      }
+    }
+    async function authorReply(parentId) {
+      const message = await uiPrompt('输入作者回复内容，发布后会显示“作者”标识。');
+      if (!message) return;
+      const password = await uiPrompt('输入交易管理密码以验证作者身份。', '', 'password');
+      if (!password) return;
+      try {
+        await apiGet('/api/comments/reply', { parent_id: parentId, message }, password);
+        showNotice('作者回复已发布。');
+        loadComments();
+      } catch (err) {
+        await uiAlert(err.message || String(err), '回复失败');
       }
     }
     document.getElementById('settingsClose').addEventListener('click', () => {
@@ -1489,22 +1765,14 @@ HTML = """<!doctype html>
       }
     });
     document.getElementById('settingsSave').addEventListener('click', async () => {
-      const password = window.prompt('输入当前交易开关密码以保存设置');
+      const password = await uiPrompt('输入当前交易开关密码以保存设置', '', 'password');
       if (!password) return;
       const saveButton = document.getElementById('settingsSave');
       saveButton.disabled = true;
       saveButton.textContent = '保存中...';
       setSettingsStatus('正在保存并校验设置...');
-      try { await apiGet('/api/settings/update', settingsPayload(password), password); }
-      catch (err) {
-        const message = err.message || String(err);
-        setSettingsStatus(message, 'error');
-        showNotice(`设置保存失败：${message}`, 'error');
-        saveButton.disabled = false;
-        saveButton.textContent = '保存设置';
-        return;
-      }
       try {
+        await apiGet('/api/settings/update', settingsPayload(password), password);
         const profitResult = await apiGet('/api/strategy/take-profit', {
           take_profit_pct: Number(document.getElementById('setTakeProfitPct').value || 0),
           apply_existing: document.getElementById('setApplyTakeProfit').value === 'true'
@@ -1513,19 +1781,21 @@ HTML = """<!doctype html>
         const message = `设置保存成功。盈利比例 ${fmt((profitResult.take_profit_pct || 0) * 100, 4)}%，未平批次更新 ${lots.updated || 0} 个，跳过 ${lots.skipped || 0} 个。`;
         setSettingsStatus(message, 'success');
         showNotice(message, 'success');
+        settingsLoaded = false;
+        try {
+          await loadSettings(false);
+        } catch (reloadError) {
+          showNotice(`设置已保存，但重新读取失败：${reloadError.message || reloadError}`, 'error');
+        }
+        refresh();
       } catch (err) {
         const message = err.message || String(err);
         setSettingsStatus(message, 'error');
-        showNotice(`设置部分保存失败：${message}`, 'error');
+        showNotice(`设置保存失败：${message}`, 'error');
+      } finally {
         saveButton.disabled = false;
         saveButton.textContent = '保存设置';
-        return;
       }
-      settingsLoaded = false;
-      await loadSettings(false);
-      saveButton.disabled = false;
-      saveButton.textContent = '保存设置';
-      refresh();
     });
     document.getElementById('noticeClose').addEventListener('click', () => {
       document.getElementById('noticeToast').classList.remove('show');
@@ -1543,6 +1813,22 @@ HTML = """<!doctype html>
       document.getElementById('themeDock').classList.remove('open');
       openSettingsModal();
     });
+    document.getElementById('openSettingsDock').addEventListener('click', event => {
+      event.stopPropagation();
+      document.getElementById('themeDock').classList.remove('open');
+      openSettingsModal();
+    });
+    document.getElementById('quickTheme').addEventListener('click', () => {
+      setTheme(document.body.dataset.theme === 'night' ? 'day' : 'night');
+    });
+    document.body.classList.toggle('layout-wide', localStorage.getItem('dashboardLayout') === 'wide');
+    document.getElementById('layoutToggle').addEventListener('click', () => {
+      const wide = !document.body.classList.contains('layout-wide');
+      document.body.classList.toggle('layout-wide', wide);
+      localStorage.setItem('dashboardLayout', wide ? 'wide' : 'compact');
+      drawChart(chartPoints, chartReference, chartTrades);
+    });
+    document.getElementById('scrollTop').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     document.querySelectorAll('[data-theme-choice]').forEach(button => {
       button.addEventListener('click', () => setTheme(button.dataset.themeChoice));
     });
@@ -1550,17 +1836,79 @@ HTML = """<!doctype html>
       const hidden = document.getElementById('mascot').classList.contains('hidden');
       setMascotVisible(hidden);
     });
+    const mascotImage = document.getElementById('mascotImage');
+    let mascotRetries = 0;
+    mascotImage.addEventListener('error', () => {
+      mascotRetries += 1;
+      if (mascotRetries <= 3) {
+        setTimeout(() => { mascotImage.src = `/static/mascot-ai.png?v=1.0.7-${Date.now()}`; }, 800 * mascotRetries);
+      } else {
+        mascotImage.closest('.mascot-figure').classList.add('failed');
+      }
+    });
+    mascotImage.addEventListener('load', () => mascotImage.closest('.mascot-figure').classList.remove('failed'));
+    document.getElementById('commentName').value = localStorage.getItem('dashboardCommentName') || '';
+    document.getElementById('commentSubmit').addEventListener('click', async () => {
+      const name = document.getElementById('commentName').value.trim();
+      const message = document.getElementById('commentMessage').value.trim();
+      if (!name || !message) return uiAlert('请填写昵称和评论内容。');
+      const button = document.getElementById('commentSubmit');
+      button.disabled = true;
+      button.textContent = '发布中...';
+      try {
+        await apiGet('/api/comments/add', { name, message });
+        localStorage.setItem('dashboardCommentName', name);
+        document.getElementById('commentMessage').value = '';
+        showNotice('评论已发布。');
+        await loadComments();
+      } catch (err) {
+        await uiAlert(err.message || String(err), '评论发布失败');
+      } finally {
+        button.disabled = false;
+        button.textContent = '发表评论';
+      }
+    });
+    const danmakuEnabled = localStorage.getItem('dashboardDanmaku') !== 'off';
+    document.getElementById('danmakuLayer').classList.toggle('hidden', !danmakuEnabled);
+    document.getElementById('danmakuToggle').textContent = danmakuEnabled ? '关闭弹幕' : '开启弹幕';
+    document.getElementById('danmakuSpeed').value = localStorage.getItem('dashboardDanmakuSpeed') || 'normal';
+    document.getElementById('danmakuToggle').addEventListener('click', () => {
+      const enabled = localStorage.getItem('dashboardDanmaku') === 'off';
+      localStorage.setItem('dashboardDanmaku', enabled ? 'on' : 'off');
+      document.getElementById('danmakuLayer').classList.toggle('hidden', !enabled);
+      document.getElementById('danmakuToggle').textContent = enabled ? '关闭弹幕' : '开启弹幕';
+      if (enabled) launchDanmaku(latestComments); else clearDanmaku();
+    });
+    document.getElementById('danmakuSpeed').addEventListener('change', event => {
+      localStorage.setItem('dashboardDanmakuSpeed', event.target.value);
+      launchDanmaku(latestComments);
+    });
     document.addEventListener('mouseover', event => {
-      const target = event.target.closest('[data-help], button, th, .label, .panel-title, .summary-card span, .status-item .k');
+      const target = event.target.closest('[data-help], button, th, .label, .panel-title, .strat-label, .field label, .account-table th, .summary-card span, .status-item .k');
       if (!target) return;
-      const help = target.dataset.help || {
+      const idHelp = {
         execute: '控制自动策略是否允许真实下单。手动交易仍需要二次确认密码。',
         manualBuy: '人工买入会写入账本，可以选择是否交给脚本自动卖出。',
         externalLimitSell: '用于卖出脚本账本外的 BTC 持仓，不会关闭任何未平批次。',
         calibrate: '把当前资产设为新的盈亏基准，适合充值后校准。',
         runBacktest: '用当前资金和策略参数跑模拟或历史 K 线回测。',
-        themeFab: '打开主题、助手和系统设置。'
-      }[target.id] || {
+        bulkAutoOn: '一次开启所有未平批次的自动止盈卖出。',
+        bulkAutoOff: '一次暂停所有未平批次的自动卖出，持仓不会被卖掉。',
+        bulkMarketSell: '按市价卖出全部未平批次，属于不可撤回的真实交易。',
+        bulkLimitSell: '按每个批次当前预计卖价分别提交限价单。',
+        settingsReload: '放弃页面内尚未保存的修改，重新读取服务器配置。',
+        settingsSave: '校验并保存全部系统设置，完成后会显示明确结果。',
+        commentSubmit: '发布评论，并在启用弹幕时显示在页面上方。',
+        danmakuToggle: '只控制当前浏览器是否显示弹幕，不会删除评论。',
+        danmakuSpeed: '调整弹幕从右向左移动的速度，鼠标悬停会暂停。',
+        tradePrev: '查看上一页近期订单。',
+        tradeNext: '查看下一页近期订单。',
+        openPrev: '查看上一页未平批次。',
+        openNext: '查看下一页未平批次。',
+        closedPrev: '查看上一页已平批次。',
+        closedNext: '查看下一页已平批次。'
+      };
+      const textHelp = {
         '交易对': '当前脚本正在监控和交易的现货交易对。',
         '实时价格': '从币安接口获取的最新成交参考价。',
         '当前信号': '策略当前判断：买入、卖出、持有或暂停。',
@@ -1571,8 +1919,36 @@ HTML = """<!doctype html>
         '限价挂单': '当前仍在交易所等待成交的限价委托。',
         '最近实盘订单': '脚本近期记录到的真实订单流水。',
         '账户与策略': '账户余额、风控、策略和当前执行状态摘要。',
-        '行情走势': 'K 线图展示近期价格、缩放区间和买卖位置。'
-      }[String(target.textContent || '').trim()];
+        '行情走势': 'K 线图展示近期价格与买卖位置；滚轮可连续切换时间周期。',
+        '策略回测': '使用当前资金和策略参数，对模拟数据或指定日期真实 K 线进行回放。',
+        '止盈比例': '普通批次价格达到成本价加止盈空间后，才满足自动卖出条件。',
+        '买入间距': '价格相对参考位下跌到指定间距后，普通网格才考虑新增批次。',
+        '仓位分档': '决定单笔金额和最大持仓是否随账户资产自动缩放。',
+        '防守模式': '持仓占用、浮亏或回撤达到条件时，会放慢普通补仓节奏。',
+        '浮亏保护': '未平仓浮亏达到保护金额后，普通自动买入会暂停。',
+        '账户余额': '账户 BTC 总量，包含可用和被限价单锁定的部分。',
+        '可用现金': '账户 USDT 总量，锁定资金会单独标注。',
+        '当前持仓': '未平批次数、新单参考金额和最大持仓额度。',
+        '收益概况': '已结算利润与当前未平批次浮动盈亏的摘要。',
+        '交易费用': '未平批次买入费、已平批次双端费用及累计费用。',
+        '自动买入': '当前风控是否允许普通网格继续新增仓位。',
+        '趋势判断': '根据 24 小时与 7 日均线判断是否进入下跌趋势保护。',
+        '波段抄底': '独立资金池在较深位置寻找波段机会，不与普通网格混用。',
+        '防守震荡': '防守期内用单独的小资金池尝试窄幅低买高卖。',
+        '账本同步': '比较脚本记录的 BTC 数量与币安账户实际余额。',
+        '提示': '展示接口、价格源或订单处理中的异常信息。',
+        '限价': '委托只有达到指定价格后才可能成交，成交前资金会被锁定。',
+        '数量': '交易或批次对应的 BTC 数量，为避免小额显示为零会保留更多小数。',
+        '手续费': '该批次已记录的交易手续费。',
+        '浮盈亏': '按当前市价估算，尚未真正结算。',
+        '净利润': '扣除已记录手续费后的批次实际利润。',
+        '评论内容': '评论最多 300 字，请勿填写账号密钥等敏感信息。',
+        '昵称': '评论展示名称，会记在当前浏览器方便下次使用。'
+      };
+      const rawText = String(target.textContent || '').trim();
+      const help = target.dataset.help || idHelp[target.id] || textHelp[rawText]
+        || (target.tagName === 'BUTTON' ? `“${rawText}”用于执行当前页面对应操作，涉及交易时仍会要求密码和二次确认。` : '')
+        || (target.tagName === 'TH' || target.matches('.field label, .strat-label, .account-table th') ? `这里显示或设置“${rawText}”，修改策略参数前建议先回测。` : '');
       if (help) mascotSay(help);
     });
     setTheme(localStorage.getItem('dashboardTheme') || 'day');
@@ -1646,6 +2022,7 @@ class Dashboard:
         self.ledger = PositionLedger(Path(f"data/lots_{config.symbol}.json"))
         self.pending_path = Path(f"data/pending_orders_{config.symbol}.json")
         self.pending_store = SQLiteJsonListStore(self.pending_path, "orders")
+        self.comments_store = SQLiteJsonListStore(Path("data/comments.json"), "comments")
         self.client = BinanceSpotClient(config.base_url, config.api_key, config.api_secret)
         self.strategy = GridStrategy(
             grid_step_pct=config.grid_step_pct,
@@ -1653,6 +2030,36 @@ class Dashboard:
             order_quote_size=config.order_quote_size,
             max_position_quote=config.max_position_quote,
         )
+
+    def comments(self, limit: int = 100) -> list[dict[str, Any]]:
+        return self.comments_store.load()[-max(1, min(limit, 200)):]
+
+    def add_comment(
+        self,
+        name: str,
+        message: str,
+        parent_id: str = "",
+        is_author: bool = False,
+    ) -> dict[str, Any]:
+        clean_name = ("作者" if is_author else name.strip())[:20]
+        clean_message = message.strip()[:300]
+        clean_parent = parent_id.strip()[:80]
+        if not clean_name:
+            return {"error": "请输入昵称"}
+        if not clean_message:
+            return {"error": "请输入评论内容"}
+        if clean_parent and not any(str(item.get("id")) == clean_parent for item in self.comments_store.load()):
+            return {"error": "原评论不存在或已被删除"}
+        row = {
+            "id": f"{int(datetime.now().timestamp() * 1000)}-{secrets.token_hex(4)}",
+            "parent_id": clean_parent,
+            "name": clean_name,
+            "message": clean_message,
+            "is_author": is_author,
+            "created_at": _utc_now(),
+        }
+        self.comments_store.update(lambda rows: rows.append(row))
+        return {"ok": True, "comment": row}
 
     def status(self, range_key: str = "minute") -> dict[str, Any]:
         pending_orders = self.sync_pending_orders()
@@ -2652,12 +3059,15 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 try:
                     range_key = parse_qs(parsed.query).get("range", ["minute"])[0]
                     payload = dashboard.status(range_key)
-                except BinanceAPIError as exc:
+                except Exception as exc:
                     payload = {"error": str(exc)}
                 self._send(200, json.dumps(payload, sort_keys=True).encode(), "application/json")
                 return
             if path == "/api/settings":
                 self._send(200, json.dumps(dashboard.settings(), sort_keys=True).encode(), "application/json")
+                return
+            if path == "/api/comments":
+                self._send(200, json.dumps({"comments": dashboard.comments()}, sort_keys=True).encode(), "application/json")
                 return
             if path not in {
                 "/api/trading",
@@ -2673,6 +3083,8 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/manual/external-limit-sell",
                 "/api/manual/cancel-order",
                 "/api/manual/external-close",
+                "/api/comments/add",
+                "/api/comments/reply",
             }:
                 self._send(404, b"not found", "text/plain; charset=utf-8")
                 return
@@ -2682,6 +3094,13 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                     result = dashboard.backtest(payload)
                 except Exception as exc:
                     result = {"error": f"backtest failed: {exc}"}
+                self._send(200, json.dumps(result, sort_keys=True).encode(), "application/json")
+                return
+            if path == "/api/comments/add":
+                result = dashboard.add_comment(
+                    str(payload.get("name", "")),
+                    str(payload.get("message", "")),
+                )
                 self._send(200, json.dumps(result, sort_keys=True).encode(), "application/json")
                 return
             trading_password = self.headers.get("X-Trading-Password", "")
@@ -2758,6 +3177,13 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                     )
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
+            elif path == "/api/comments/reply":
+                result = dashboard.add_comment(
+                    "作者",
+                    str(payload.get("message", "")),
+                    str(payload.get("parent_id", "")),
+                    is_author=True,
+                )
             else:
                 result = dashboard.set_execute_trades(bool(payload.get("execute_trades")))
             self._send(200, json.dumps(result, sort_keys=True).encode(), "application/json")
