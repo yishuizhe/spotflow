@@ -107,8 +107,16 @@ HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Binance Spot Live Agent</title>
+  <title>SpotFlow · 现货量化助手</title>
+  <meta name="application-name" content="SpotFlow">
+  <meta name="apple-mobile-web-app-title" content="SpotFlow">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b1724">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=1.0.11">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/app-icon-192.png?v=1.0.11">
   <link rel="shortcut icon" href="/favicon.svg">
   <style>
     :root {
@@ -380,8 +388,8 @@ HTML = """<!doctype html>
   <main>
     <header>
       <div>
-        <h1>Binance Spot Live Agent</h1>
-        <div class="muted">实盘实时交易看板</div>
+        <h1>SpotFlow</h1>
+        <div class="muted">现货量化交易看板</div>
       </div>
       <div class="header-actions">
         <div class="muted" id="updated">加载中...</div>
@@ -3038,6 +3046,31 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/favicon.svg":
                 self._send(200, FAVICON_SVG, "image/svg+xml")
+                return
+            if path == "/manifest.webmanifest":
+                manifest = {
+                    "name": "SpotFlow 现货量化助手",
+                    "short_name": "SpotFlow",
+                    "description": "现货量化交易、持仓和策略监控看板",
+                    "start_url": "/",
+                    "scope": "/",
+                    "display": "standalone",
+                    "background_color": "#eef4f7",
+                    "theme_color": "#0b1724",
+                    "icons": [
+                        {"src": "/static/app-icon-192.png", "sizes": "192x192", "type": "image/png"},
+                        {"src": "/static/app-icon-512.png", "sizes": "512x512", "type": "image/png"},
+                    ],
+                }
+                self._send(200, json.dumps(manifest, ensure_ascii=False).encode(), "application/manifest+json")
+                return
+            if path in {"/static/apple-touch-icon.png", "/static/app-icon-192.png", "/static/app-icon-512.png"}:
+                filename = path.rsplit("/", 1)[-1]
+                asset_path = Path(__file__).with_name("static") / filename
+                if asset_path.exists():
+                    self._send(200, asset_path.read_bytes(), "image/png")
+                else:
+                    self._send(404, b"not found", "text/plain; charset=utf-8")
                 return
             if path == "/static/mascot-ai.png":
                 asset_path = Path(__file__).with_name("static") / "mascot-ai.png"
