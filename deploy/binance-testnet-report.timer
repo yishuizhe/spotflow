@@ -1,5 +1,5 @@
 [Unit]
-Description=Send Binance Spot Live Agent report daily at 18:00 Asia/Shanghai
+Description=Send one prioritized Binance Spot Live Agent report at 18:00 Asia/Shanghai
 
 [Timer]
 OnCalendar=*-*-* 10:00:00 UTC
