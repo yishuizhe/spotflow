@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.10 - 2026-06-06
+
+- Reduced the floating utility rail and icon sizes and moved the rail from mid-page to the bottom-right corner.
+- Repositioned the theme drawer to expand leftward from the bottom-right and reduced its mobile footprint.
+
 ## v1.0.9 - 2026-06-06
 
 - Send exactly one report at 18:00 each day, prioritizing month-end reports over weekly reports and weekly reports over daily reports.

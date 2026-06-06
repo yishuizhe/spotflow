@@ -256,16 +256,16 @@ HTML = """<!doctype html>
     .inline-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; }
     .inline-controls .field input, .inline-controls .field select { height: 36px; }
     .result-note { margin-top: 12px; padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--accent-2) 12%, transparent); color: var(--good); font-weight: 750; }
-    .floating-dock { position: fixed; right: 18px; top: 50%; z-index: 18; display: flex; flex-direction: row; align-items: center; gap: 10px; pointer-events: none; transform: translateY(-50%); }
-    .dock-rail { display: grid; gap: 8px; pointer-events: auto; }
-    .dock-fab { width: 48px; height: 48px; border-radius: 10px; border: 0; background: color-mix(in srgb, var(--accent) 84%, #38bdf8); color: #fff; box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 24%, transparent); cursor: pointer; font-size: 21px; font-weight: 900; pointer-events: auto; transition: transform .16s ease, filter .16s ease; }
+    .floating-dock { position: fixed; right: 16px; bottom: 16px; z-index: 18; display: flex; flex-direction: row; align-items: flex-end; gap: 8px; pointer-events: none; }
+    .dock-rail { display: grid; gap: 6px; pointer-events: auto; }
+    .dock-fab { width: 40px; height: 40px; border-radius: 9px; border: 0; background: color-mix(in srgb, var(--accent) 84%, #38bdf8); color: #fff; box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 22%, transparent); cursor: pointer; font-size: 17px; font-weight: 900; pointer-events: auto; transition: transform .16s ease, filter .16s ease; }
     .dock-fab:hover { transform: translateX(-3px); filter: brightness(1.06); }
-    .theme-icon { position: relative; display: inline-block; width: 23px; height: 23px; border: 3px solid #fff; border-radius: 50%; }
-    .theme-icon::before { content: ""; position: absolute; width: 6px; height: 6px; left: 3px; top: 3px; border-radius: 50%; background: #facc15; box-shadow: 8px 0 #fb7185, 0 8px #34d399; }
-    .theme-icon::after { content: ""; position: absolute; right: -4px; bottom: -3px; width: 9px; height: 7px; border-radius: 0 0 9px 9px; background: inherit; transform: rotate(-35deg); }
+    .theme-icon { position: relative; display: inline-block; width: 19px; height: 19px; border: 2px solid #fff; border-radius: 50%; }
+    .theme-icon::before { content: ""; position: absolute; width: 5px; height: 5px; left: 3px; top: 3px; border-radius: 50%; background: #facc15; box-shadow: 6px 0 #fb7185, 0 6px #34d399; }
+    .theme-icon::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 7px; height: 6px; border-radius: 0 0 8px 8px; background: inherit; transform: rotate(-35deg); }
     body[data-theme="night"] .dock-fab { color: #111827; }
-    .theme-drawer { position: absolute; right: 58px; top: 50%; width: min(320px, calc(100vw - 92px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateY(-50%) translateX(10px) scale(.98); transform-origin: center right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
-    .floating-dock.open .theme-drawer { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); pointer-events: auto; }
+    .theme-drawer { position: absolute; right: 48px; bottom: 0; width: min(300px, calc(100vw - 76px)); padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(10px); opacity: 0; transform: translateX(10px) translateY(6px) scale(.98); transform-origin: bottom right; pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+    .floating-dock.open .theme-drawer { opacity: 1; transform: translateX(0) translateY(0) scale(1); pointer-events: auto; }
     .theme-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 850; }
     .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .theme-chip { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 760; cursor: pointer; }
@@ -362,10 +362,10 @@ HTML = """<!doctype html>
       .modal-actions { flex-direction: column-reverse; }
       .modal-actions button { width: 100%; }
       .settings-modal-actions { bottom: -14px; margin: 14px -14px -14px; padding: 12px 14px; }
-      .floating-dock { right: 8px; top: 50%; bottom: auto; transform: translateY(-50%); }
+      .floating-dock { right: 8px; top: auto; bottom: 10px; transform: none; }
       .dock-rail { grid-auto-flow: row; gap: 6px; }
-      .dock-fab { width: 40px; height: 40px; font-size: 17px; border-radius: 9px; }
-      .theme-drawer { right: 48px; width: min(300px, calc(100vw - 68px)); }
+      .dock-fab { width: 36px; height: 36px; font-size: 15px; border-radius: 8px; }
+      .theme-drawer { right: 44px; bottom: 0; width: min(280px, calc(100vw - 60px)); }
       .mascot { left: 2px; bottom: 0; gap: 6px; }
       .mascot-figure { width: 52px; height: 78px; }
       .mascot-bubble { max-width: 156px; margin-bottom: 28px; font-size: 10px; padding: 7px 8px; }
