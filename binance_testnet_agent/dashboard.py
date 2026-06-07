@@ -113,7 +113,6 @@ HTML = """<!doctype html>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0b1724">
-  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=1.0.11">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/app-icon-192.png?v=1.0.11">
@@ -600,6 +599,7 @@ HTML = """<!doctype html>
         <div class="settings-grid">
           <div class="field"><label>页面登录密码</label><input id="setDashboardPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
           <div class="field"><label>交易开关密码</label><input id="setTradingPassword" type="password" placeholder="留空不改" autocomplete="new-password"></div>
+          <div class="field"><label>允许访客评论</label><select id="setCommentsEnabled"><option value="true">开启</option><option value="false">关闭</option></select></div>
         </div>
       </div>
       <div class="settings-section">
@@ -1235,6 +1235,7 @@ HTML = """<!doctype html>
       document.getElementById('setSmtpPassword').placeholder = data.smtp_password_set ? '已设置，留空不改' : '未设置';
       document.getElementById('setSmtpFromName').value = data.smtp_from_name || '';
       document.getElementById('setReportRecipient').value = data.report_recipient || '';
+      document.getElementById('setCommentsEnabled').value = data.comments_enabled === false ? 'false' : 'true';
       renderConfigSettings(data.config_fields || []);
       if (resetStatus) setSettingsStatus('密码字段不会回显；留空表示不修改。');
       settingsLoaded = true;
@@ -1315,6 +1316,7 @@ HTML = """<!doctype html>
         smtp_password: document.getElementById('setSmtpPassword').value,
         smtp_from_name: document.getElementById('setSmtpFromName').value.trim(),
         report_recipient: document.getElementById('setReportRecipient').value.trim(),
+        comments_enabled: document.getElementById('setCommentsEnabled').value,
         config_updates: configSettingsPayload()
       };
     }
@@ -1665,6 +1667,7 @@ HTML = """<!doctype html>
     let latestComments = [];
     let danmakuTimers = [];
     let commentAdminPassword = '';
+    let commentsEnabled = true;
     function commentAdminEnabled() {
       return Boolean(commentAdminPassword);
     }
@@ -1673,14 +1676,18 @@ HTML = """<!doctype html>
       document.getElementById('commentAdminToggle').textContent = enabled ? '退出管理员模式' : '管理员模式';
       document.getElementById('commentAdminNote').classList.toggle('show', enabled);
       const nameInput = document.getElementById('commentName');
-      nameInput.disabled = enabled;
+      nameInput.disabled = enabled || !commentsEnabled;
       if (enabled) {
         nameInput.dataset.visitorName = nameInput.value;
         nameInput.value = '管理员';
       } else {
         nameInput.value = nameInput.dataset.visitorName || localStorage.getItem('dashboardCommentName') || '';
       }
-      document.getElementById('commentSubmit').textContent = enabled ? '以管理员身份发表' : '发表评论';
+      const messageInput = document.getElementById('commentMessage');
+      const submit = document.getElementById('commentSubmit');
+      messageInput.disabled = !enabled && !commentsEnabled;
+      submit.disabled = !enabled && !commentsEnabled;
+      submit.textContent = enabled ? '以管理员身份发表' : (commentsEnabled ? '发表评论' : '评论已关闭');
     }
     function danmakuDuration() {
       return { slow: 26, normal: 18, fast: 11 }[document.getElementById('danmakuSpeed').value] || 18;
@@ -1803,6 +1810,8 @@ HTML = """<!doctype html>
       if (!loginValidated) return;
       try {
         const data = await apiGet('/api/comments');
+        commentsEnabled = data.comments_enabled !== false;
+        updateCommentAdminUi();
         renderComments(data.comments || []);
       } catch (err) {
         const list = document.getElementById('commentList');
@@ -1969,6 +1978,7 @@ HTML = """<!doctype html>
       }
     });
     document.getElementById('commentSubmit').addEventListener('click', async () => {
+      if (!commentAdminEnabled() && !commentsEnabled) return uiAlert('管理员已关闭访客评论。');
       const name = document.getElementById('commentName').value.trim();
       const message = document.getElementById('commentMessage').value.trim();
       if (!name || !message) return uiAlert('请填写昵称和评论内容。');
@@ -1992,8 +2002,7 @@ HTML = """<!doctype html>
         }
         await uiAlert(err.message || String(err), '评论发布失败');
       } finally {
-        button.disabled = false;
-        button.textContent = commentAdminEnabled() ? '以管理员身份发表' : '发表评论';
+        updateCommentAdminUi();
       }
     });
     const danmakuEnabled = localStorage.getItem('dashboardDanmaku') !== 'off';
@@ -2163,6 +2172,9 @@ class Dashboard:
     def comments(self, limit: int = 100) -> list[dict[str, Any]]:
         return self.comments_store.load()[-max(1, min(limit, 200)):]
 
+    def comments_enabled(self) -> bool:
+        return str(os.getenv("COMMENTS_ENABLED", "true")).strip().lower() in {"1", "true", "yes", "on"}
+
     def add_comment(
         self,
         name: str,
@@ -2170,6 +2182,8 @@ class Dashboard:
         parent_id: str = "",
         is_author: bool = False,
     ) -> dict[str, Any]:
+        if not is_author and not self.comments_enabled():
+            return {"error": "管理员已关闭访客评论"}
         clean_name = ("管理员" if is_author else name.strip())[:20]
         clean_message = message.strip()[:300]
         clean_parent = parent_id.strip()[:80]
@@ -2347,10 +2361,15 @@ class Dashboard:
                 else 0.0
             )
         if is_scalp_lot(enriched):
-            target_price = float(enriched.get("target_price") or 0)
+            buy_price = float(enriched.get("buy_price") or 0)
+            recorded_target = float(enriched.get("target_price") or 0)
+            safe_target = buy_price * (
+                1 + self.config.defensive_scalp_take_profit_pct + self.config.trading_fee_rate * 2
+            )
+            target_price = max(recorded_target, safe_target)
             enriched["effective_target_price"] = target_price
-            enriched["target_price_adjusted"] = False
-            enriched["target_note"] = "scalp"
+            enriched["target_price_adjusted"] = target_price > recorded_target
+            enriched["target_note"] = "防亏保护" if target_price > recorded_target else "防守震荡"
             enriched["target_profit_pct_effective"] = (
                 (target_price / float(enriched.get("buy_price") or 1)) - 1
                 if target_price > 0 and float(enriched.get("buy_price") or 0) > 0
@@ -3012,6 +3031,7 @@ class Dashboard:
             "smtp_from_name": os.getenv("SMTP_FROM_NAME", "交易报告"),
             "report_recipient": os.getenv("REPORT_RECIPIENT", ""),
             "manual_buy_auto_sell": self.manual_buy_auto_sell_enabled(),
+            "comments_enabled": self.comments_enabled(),
             "take_profit_pct": float(os.getenv("TAKE_PROFIT_PCT", str(self.config.take_profit_pct))),
             "config_fields": _config_setting_fields(self.config),
         }
@@ -3034,12 +3054,13 @@ class Dashboard:
             "smtp_from_name": "SMTP_FROM_NAME",
             "report_recipient": "REPORT_RECIPIENT",
             "manual_buy_auto_sell": "MANUAL_BUY_AUTO_SELL",
+            "comments_enabled": "COMMENTS_ENABLED",
         }
         for source, env_key in mapping.items():
             value = str(payload.get(source, "") or "").strip()
             if source.endswith("password") and not value:
                 continue
-            if source in {"smtp_host", "smtp_port", "smtp_username", "smtp_from_name", "report_recipient", "manual_buy_auto_sell"}:
+            if source in {"smtp_host", "smtp_port", "smtp_username", "smtp_from_name", "report_recipient", "manual_buy_auto_sell", "comments_enabled"}:
                 updates[env_key] = value
             elif value:
                 updates[env_key] = value
@@ -3195,23 +3216,6 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
             if path == "/favicon.svg":
                 self._send(200, FAVICON_SVG, "image/svg+xml")
                 return
-            if path == "/manifest.webmanifest":
-                manifest = {
-                    "name": "SpotFlow 现货量化助手",
-                    "short_name": "SpotFlow",
-                    "description": "现货量化交易、持仓和策略监控看板",
-                    "start_url": "/",
-                    "scope": "/",
-                    "display": "standalone",
-                    "background_color": "#eef4f7",
-                    "theme_color": "#0b1724",
-                    "icons": [
-                        {"src": "/static/app-icon-192.png", "sizes": "192x192", "type": "image/png"},
-                        {"src": "/static/app-icon-512.png", "sizes": "512x512", "type": "image/png"},
-                    ],
-                }
-                self._send(200, json.dumps(manifest, ensure_ascii=False).encode(), "application/manifest+json")
-                return
             if path in {"/static/apple-touch-icon.png", "/static/app-icon-192.png", "/static/app-icon-512.png"}:
                 filename = path.rsplit("/", 1)[-1]
                 asset_path = Path(__file__).with_name("static") / filename
@@ -3245,7 +3249,14 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 self._send(200, json.dumps(dashboard.settings(), sort_keys=True).encode(), "application/json")
                 return
             if path == "/api/comments":
-                self._send(200, json.dumps({"comments": dashboard.comments()}, sort_keys=True).encode(), "application/json")
+                self._send(
+                    200,
+                    json.dumps(
+                        {"comments": dashboard.comments(), "comments_enabled": dashboard.comments_enabled()},
+                        sort_keys=True,
+                    ).encode(),
+                    "application/json",
+                )
                 return
             if path not in {
                 "/api/trading",

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.14 - 2026-06-07
+
+- Rebased strategy targets on the actual market-buy fill price instead of the pre-order ticker price.
+- Added a fee-aware profit floor for new and legacy defensive-scalp lots to prevent automatic loss-making exits.
+- Added an administrator-controlled visitor-comment switch while retaining administrator announcements, replies, and deletion.
+- Removed the Web App Manifest link and endpoint while retaining standard favicons and the Apple Touch Icon.
+- Added regression tests for fill-price target rebasing, legacy-lot sell protection, and disabled visitor comments.
+
 ## v1.0.13 - 2026-06-07
 
 - Added a session-only comment administrator mode protected by the trading management password.

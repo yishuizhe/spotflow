@@ -385,13 +385,21 @@ class TradingAgent:
         if not order_result or order_result.get("dry_run") or order_result.get("skipped") or order_result.get("error"):
             return None
         if decision.signal == Signal.BUY:
+            target_price = decision.target_price or None
+            if target_price and decision.price > 0:
+                executed_qty = float(order_result.get("executedQty", 0) or 0)
+                quote_qty = float(order_result.get("cummulativeQuoteQty", 0) or 0)
+                if executed_qty > 0 and quote_qty > 0:
+                    fill_price = quote_qty / executed_qty
+                    target_markup = max(0.0, target_price / decision.price - 1)
+                    target_price = fill_price * (1 + target_markup)
             return self.ledger.add_buy(
                 self.config.symbol,
                 order_result,
                 self.config.take_profit_pct,
                 self.config.trading_fee_rate,
                 decision.level,
-                decision.target_price or None,
+                target_price,
                 True,
             )
         if decision.signal == Signal.SELL and decision.lot_id:
