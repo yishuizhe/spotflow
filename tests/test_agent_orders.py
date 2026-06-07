@@ -29,6 +29,34 @@ class AgentOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_buy_target_is_rebased_to_actual_fill_price(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path.cwd()
+            try:
+                import os
+
+                os.chdir(tmp)
+                agent = TradingAgent(AgentConfig(api_key="key", api_secret="secret"))
+                decision = StrategyDecision(
+                    Signal.BUY,
+                    "defensive scalp lower edge buy",
+                    100,
+                    100,
+                    10,
+                    "scalp-entry-1",
+                    target_price=101,
+                )
+                order = {"executedQty": "0.1", "cummulativeQuoteQty": "10.05", "orderId": 1}
+
+                lot = agent._update_ledger(decision, order)
+
+                self.assertIsNotNone(lot)
+                assert lot is not None
+                self.assertAlmostEqual(lot["buy_price"], 100.5)
+                self.assertAlmostEqual(lot["target_price"], 101.505)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -59,10 +59,10 @@ class DefensiveScalpStrategy:
         sellable = [
             lot for lot in open_lots
             if not lot.get("pending_limit_sell_order_id")
-            and snapshot.price >= float(lot.get("target_price") or 0)
+            and snapshot.price >= self.safe_target_price(lot)
         ]
         if sellable:
-            lot = min(sellable, key=lambda item: float(item.get("target_price") or snapshot.price))
+            lot = min(sellable, key=self.safe_target_price)
             return (
                 StrategyDecision(
                     Signal.SELL,
@@ -73,7 +73,7 @@ class DefensiveScalpStrategy:
                     "scalp-target",
                     str(lot.get("id")),
                     float(lot.get("remaining_quantity", 0) or 0),
-                    float(lot.get("target_price") or state.sell_price),
+                    self.safe_target_price(lot),
                 ),
                 state,
             )
@@ -145,6 +145,12 @@ class DefensiveScalpStrategy:
             order_quote,
             reason,
         )
+
+    def safe_target_price(self, lot: dict[str, Any]) -> float:
+        buy_price = float(lot.get("buy_price") or 0)
+        recorded_target = float(lot.get("target_price") or 0)
+        profitable_target = buy_price * (1 + self.take_profit_pct + self.trading_fee_rate * 2)
+        return max(recorded_target, profitable_target)
 
 
 def is_scalp_lot(lot: dict[str, Any]) -> bool:

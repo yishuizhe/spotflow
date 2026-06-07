@@ -41,6 +41,28 @@ class DefensiveScalpTest(unittest.TestCase):
         self.assertEqual(decision.signal, Signal.SELL)
         self.assertEqual(decision.lot_id, "scalp-1")
 
+    def test_does_not_sell_legacy_lot_below_fee_adjusted_profit_target(self) -> None:
+        closes = [64000, 64200, 63800, 64150, 63750, 64050, 63860, 64020]
+        lot = {
+            "id": "scalp-legacy",
+            "level": "scalp-entry-1",
+            "status": "open",
+            "remaining_quantity": 0.001,
+            "buy_price": 64200,
+            "target_price": 64100,
+        }
+
+        decision, _state = self.strategy().decide(
+            MarketSnapshot("BTCUSDT", 64300, closes, 0.001, 100),
+            closes,
+            [lot],
+            400,
+            True,
+        )
+
+        self.assertEqual(decision.signal, Signal.HOLD)
+        self.assertGreater(self.strategy().safe_target_price(lot), 64500)
+
 
 if __name__ == "__main__":
     unittest.main()

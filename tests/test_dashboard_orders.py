@@ -177,6 +177,29 @@ class DashboardOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_disabled_comments_block_visitors_but_allow_admin(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            old_value = os.environ.get("COMMENTS_ENABLED")
+            try:
+                os.chdir(tmp)
+                os.environ["COMMENTS_ENABLED"] = "false"
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                self.assertIn("error", dashboard.add_comment("访客", "不能发布"))
+                self.assertTrue(dashboard.add_comment("管理员", "公告", is_author=True)["ok"])
+            finally:
+                os.chdir(old_cwd)
+                if old_value is None:
+                    os.environ.pop("COMMENTS_ENABLED", None)
+                else:
+                    os.environ["COMMENTS_ENABLED"] = old_value
+
     def test_admin_can_delete_comment_and_nested_replies(self) -> None:
         with TemporaryDirectory() as tmp:
             old_cwd = Path.cwd()
