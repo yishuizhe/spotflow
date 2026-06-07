@@ -311,6 +311,10 @@ HTML = """<!doctype html>
     .comment-reply { border-left: 3px solid var(--accent); padding: 8px 10px; background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 0 6px 6px 0; }
     .comment-actions { margin-left: auto; }
     .comment-actions button { min-height: 28px; padding: 0 9px; font-size: 12px; }
+    .comment-actions { display: flex; gap: 6px; }
+    .comment-delete { color: var(--switch-off); border-color: color-mix(in srgb, var(--switch-off) 42%, var(--line)); }
+    .comment-admin-note { display: none; margin-top: 10px; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 7px; background: color-mix(in srgb, var(--accent) 7%, transparent); color: var(--text); }
+    .comment-admin-note.show { display: block; }
     .danmaku-layer { position: fixed; inset: 74px 0 auto; height: 180px; z-index: 16; overflow: hidden; pointer-events: none; }
     .danmaku-layer.hidden { display: none; }
     .danmaku-item { position: absolute; right: -50vw; max-width: 520px; padding: 7px 12px; border-radius: 999px; color: #fff; background: rgba(15,23,42,.72); box-shadow: 0 6px 18px rgba(15,23,42,.16); font-size: 13px; white-space: nowrap; pointer-events: auto; animation: danmaku-move var(--danmaku-duration, 18s) linear forwards; }
@@ -568,6 +572,7 @@ HTML = """<!doctype html>
           <div class="muted">分享使用体验、策略想法或问题；评论会同步显示为弹幕。</div>
         </div>
         <div class="button-stack">
+          <button class="secondary-button" id="commentAdminToggle">管理员模式</button>
           <button class="secondary-button" id="danmakuToggle">关闭弹幕</button>
           <select id="danmakuSpeed" class="secondary-button" aria-label="弹幕速度">
             <option value="slow">慢速</option><option value="normal" selected>正常</option><option value="fast">快速</option>
@@ -579,6 +584,7 @@ HTML = """<!doctype html>
         <div class="field"><label>评论内容</label><textarea id="commentMessage" maxlength="300" placeholder="说点具体的，会更容易得到有价值的回复。"></textarea></div>
         <button class="action-button" id="commentSubmit">发表评论</button>
       </div>
+      <div class="comment-admin-note" id="commentAdminNote">管理员模式已开启：可以发布管理员评论、回复和删除评论。权限仅保留到本页面关闭。</div>
       <div class="comment-list" id="commentList"><div class="muted">正在读取评论...</div></div>
     </section>
   </main>
@@ -1658,6 +1664,24 @@ HTML = """<!doctype html>
     }
     let latestComments = [];
     let danmakuTimers = [];
+    let commentAdminPassword = '';
+    function commentAdminEnabled() {
+      return Boolean(commentAdminPassword);
+    }
+    function updateCommentAdminUi() {
+      const enabled = commentAdminEnabled();
+      document.getElementById('commentAdminToggle').textContent = enabled ? '退出管理员模式' : '管理员模式';
+      document.getElementById('commentAdminNote').classList.toggle('show', enabled);
+      const nameInput = document.getElementById('commentName');
+      nameInput.disabled = enabled;
+      if (enabled) {
+        nameInput.dataset.visitorName = nameInput.value;
+        nameInput.value = '管理员';
+      } else {
+        nameInput.value = nameInput.dataset.visitorName || localStorage.getItem('dashboardCommentName') || '';
+      }
+      document.getElementById('commentSubmit').textContent = enabled ? '以管理员身份发表' : '发表评论';
+    }
     function danmakuDuration() {
       return { slow: 26, normal: 18, fast: 11 }[document.getElementById('danmakuSpeed').value] || 18;
     }
@@ -1706,7 +1730,7 @@ HTML = """<!doctype html>
         if (item.is_author) {
           const badge = document.createElement('span');
           badge.className = 'author-badge';
-          badge.textContent = '作者';
+          badge.textContent = '管理员';
           meta.appendChild(badge);
         }
         const time = document.createElement('span');
@@ -1714,11 +1738,18 @@ HTML = """<!doctype html>
         meta.appendChild(time);
         const actions = document.createElement('span');
         actions.className = 'comment-actions';
-        const reply = document.createElement('button');
-        reply.className = 'secondary-button';
-        reply.textContent = '作者回复';
-        reply.addEventListener('click', () => authorReply(item.id));
-        actions.appendChild(reply);
+        if (commentAdminEnabled()) {
+          const reply = document.createElement('button');
+          reply.className = 'secondary-button';
+          reply.textContent = '回复';
+          reply.addEventListener('click', () => authorReply(item.id));
+          actions.appendChild(reply);
+          const remove = document.createElement('button');
+          remove.className = 'secondary-button comment-delete';
+          remove.textContent = '删除';
+          remove.addEventListener('click', () => deleteComment(item.id, true));
+          actions.appendChild(remove);
+        }
         meta.appendChild(actions);
         const body = document.createElement('div');
         body.className = 'comment-body';
@@ -1740,12 +1771,22 @@ HTML = """<!doctype html>
             if (replyItem.is_author) {
               const badge = document.createElement('span');
               badge.className = 'author-badge';
-              badge.textContent = '作者';
+              badge.textContent = '管理员';
               replyMeta.appendChild(badge);
             }
             const replyTime = document.createElement('span');
             replyTime.textContent = replyItem.created_at ? new Date(replyItem.created_at).toLocaleString() : '';
             replyMeta.appendChild(replyTime);
+            if (commentAdminEnabled()) {
+              const replyActions = document.createElement('span');
+              replyActions.className = 'comment-actions';
+              const remove = document.createElement('button');
+              remove.className = 'secondary-button comment-delete';
+              remove.textContent = '删除';
+              remove.addEventListener('click', () => deleteComment(replyItem.id, false));
+              replyActions.appendChild(remove);
+              replyMeta.appendChild(replyActions);
+            }
             const replyBody = document.createElement('div');
             replyBody.className = 'comment-body';
             replyBody.textContent = replyItem.message;
@@ -1773,16 +1814,35 @@ HTML = """<!doctype html>
       }
     }
     async function authorReply(parentId) {
-      const message = await uiPrompt('输入作者回复内容，发布后会显示“作者”标识。');
+      if (!commentAdminEnabled()) return uiAlert('请先开启管理员模式。');
+      const message = await uiPrompt('输入管理员回复内容，发布后会显示“管理员”标识。');
       if (!message) return;
-      const password = await uiPrompt('输入交易管理密码以验证作者身份。', '', 'password');
-      if (!password) return;
       try {
-        await apiGet('/api/comments/reply', { parent_id: parentId, message }, password);
-        showNotice('作者回复已发布。');
+        await apiGet('/api/comments/reply', { parent_id: parentId, message }, commentAdminPassword);
+        showNotice('管理员回复已发布。');
         loadComments();
       } catch (err) {
+        if (String(err.message || err).includes('invalid trading password')) {
+          commentAdminPassword = '';
+          updateCommentAdminUi();
+        }
         await uiAlert(err.message || String(err), '回复失败');
+      }
+    }
+    async function deleteComment(commentId, includesReplies) {
+      if (!commentAdminEnabled()) return uiAlert('请先开启管理员模式。');
+      const message = includesReplies ? '删除这条评论及其全部回复？此操作无法撤销。' : '删除这条回复？此操作无法撤销。';
+      if (!await uiConfirm(message, '删除评论')) return;
+      try {
+        const result = await apiGet('/api/comments/delete', { comment_id: commentId }, commentAdminPassword);
+        showNotice(`已删除 ${Number(result.deleted || 1)} 条评论。`);
+        await loadComments();
+      } catch (err) {
+        if (String(err.message || err).includes('invalid trading password')) {
+          commentAdminPassword = '';
+          updateCommentAdminUi();
+        }
+        await uiAlert(err.message || String(err), '删除失败');
       }
     }
     document.getElementById('settingsClose').addEventListener('click', () => {
@@ -1888,6 +1948,26 @@ HTML = """<!doctype html>
     });
     mascotImage.addEventListener('load', () => mascotImage.closest('.mascot-figure').classList.remove('failed'));
     document.getElementById('commentName').value = localStorage.getItem('dashboardCommentName') || '';
+    document.getElementById('commentAdminToggle').addEventListener('click', async () => {
+      if (commentAdminEnabled()) {
+        commentAdminPassword = '';
+        updateCommentAdminUi();
+        renderComments(latestComments);
+        showNotice('已退出管理员模式。');
+        return;
+      }
+      const password = await uiPrompt('输入交易管理密码以开启管理员评论权限。', '', 'password');
+      if (!password) return;
+      try {
+        await apiGet('/api/comments/admin', {}, password);
+        commentAdminPassword = password;
+        updateCommentAdminUi();
+        renderComments(latestComments);
+        showNotice('管理员模式已开启。');
+      } catch (err) {
+        await uiAlert(err.message || String(err), '管理员验证失败');
+      }
+    });
     document.getElementById('commentSubmit').addEventListener('click', async () => {
       const name = document.getElementById('commentName').value.trim();
       const message = document.getElementById('commentMessage').value.trim();
@@ -1896,16 +1976,24 @@ HTML = """<!doctype html>
       button.disabled = true;
       button.textContent = '发布中...';
       try {
-        await apiGet('/api/comments/add', { name, message });
-        localStorage.setItem('dashboardCommentName', name);
+        if (commentAdminEnabled()) {
+          await apiGet('/api/comments/admin-add', { message }, commentAdminPassword);
+        } else {
+          await apiGet('/api/comments/add', { name, message });
+          localStorage.setItem('dashboardCommentName', name);
+        }
         document.getElementById('commentMessage').value = '';
-        showNotice('评论已发布。');
+        showNotice(commentAdminEnabled() ? '管理员评论已发布。' : '评论已发布。');
         await loadComments();
       } catch (err) {
+        if (commentAdminEnabled() && String(err.message || err).includes('invalid trading password')) {
+          commentAdminPassword = '';
+          updateCommentAdminUi();
+        }
         await uiAlert(err.message || String(err), '评论发布失败');
       } finally {
         button.disabled = false;
-        button.textContent = '发表评论';
+        button.textContent = commentAdminEnabled() ? '以管理员身份发表' : '发表评论';
       }
     });
     const danmakuEnabled = localStorage.getItem('dashboardDanmaku') !== 'off';
@@ -1939,6 +2027,7 @@ HTML = """<!doctype html>
         settingsReload: '放弃页面内尚未保存的修改，重新读取服务器配置。',
         settingsSave: '校验并保存全部系统设置，完成后会显示明确结果。',
         commentSubmit: '发布评论，并在启用弹幕时显示在页面上方。',
+        commentAdminToggle: '使用交易管理密码验证管理员身份。管理员可以发布、回复和删除评论。',
         danmakuToggle: '只控制当前浏览器是否显示弹幕，不会删除评论。',
         danmakuSpeed: '调整弹幕从右向左移动的速度，鼠标悬停会暂停。',
         tradePrev: '查看上一页近期订单。',
@@ -2081,7 +2170,7 @@ class Dashboard:
         parent_id: str = "",
         is_author: bool = False,
     ) -> dict[str, Any]:
-        clean_name = ("作者" if is_author else name.strip())[:20]
+        clean_name = ("管理员" if is_author else name.strip())[:20]
         clean_message = message.strip()[:300]
         clean_parent = parent_id.strip()[:80]
         if not clean_name:
@@ -2100,6 +2189,30 @@ class Dashboard:
         }
         self.comments_store.update(lambda rows: rows.append(row))
         return {"ok": True, "comment": row}
+
+    def delete_comment(self, comment_id: str) -> dict[str, Any]:
+        clean_id = comment_id.strip()[:80]
+        if not clean_id:
+            return {"error": "缺少评论编号"}
+
+        def remove(rows: list[dict[str, Any]]) -> int:
+            target = next((item for item in rows if str(item.get("id")) == clean_id), None)
+            if target is None:
+                return 0
+            remove_ids = {clean_id}
+            if not str(target.get("parent_id", "")):
+                remove_ids.update(
+                    str(item.get("id"))
+                    for item in rows
+                    if str(item.get("parent_id", "")) == clean_id
+                )
+            rows[:] = [item for item in rows if str(item.get("id")) not in remove_ids]
+            return len(remove_ids)
+
+        deleted = self.comments_store.update(remove)
+        if not deleted:
+            return {"error": "评论不存在或已经删除"}
+        return {"ok": True, "deleted": deleted}
 
     def status(self, range_key: str = "minute") -> dict[str, Any]:
         pending_orders = self.sync_pending_orders()
@@ -3149,7 +3262,10 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/manual/cancel-order",
                 "/api/manual/external-close",
                 "/api/comments/add",
+                "/api/comments/admin",
+                "/api/comments/admin-add",
                 "/api/comments/reply",
+                "/api/comments/delete",
             }:
                 self._send(404, b"not found", "text/plain; charset=utf-8")
                 return
@@ -3172,7 +3288,17 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
             if not dashboard.trading_password_ok(trading_password):
                 self._send(403, json.dumps({"error": "invalid trading password"}).encode(), "application/json")
                 return
-            if path == "/api/baseline/calibrate":
+            if path == "/api/comments/admin":
+                result = {"ok": True}
+            elif path == "/api/comments/admin-add":
+                result = dashboard.add_comment(
+                    "管理员",
+                    str(payload.get("message", "")),
+                    is_author=True,
+                )
+            elif path == "/api/comments/delete":
+                result = dashboard.delete_comment(str(payload.get("comment_id", "")))
+            elif path == "/api/baseline/calibrate":
                 try:
                     result = dashboard.calibrate_baseline()
                 except BinanceAPIError as exc:
@@ -3244,7 +3370,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                     result = {"error": str(exc)}
             elif path == "/api/comments/reply":
                 result = dashboard.add_comment(
-                    "作者",
+                    "管理员",
                     str(payload.get("message", "")),
                     str(payload.get("parent_id", "")),
                     is_author=True,
