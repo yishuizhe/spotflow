@@ -99,6 +99,44 @@ class SwingStrategyTest(unittest.TestCase):
 
         self.assertEqual(decision.signal, Signal.HOLD)
 
+    def test_legacy_swing_target_below_cost_is_raised_to_safe_profit(self) -> None:
+        strategy = SwingStrategy(
+            enabled=True,
+            allocation_pct=0.30,
+            min_order_quote=10,
+            max_order_quote=15,
+            add_step_pct=0.015,
+            min_band_pct=0.012,
+            max_band_pct=0.025,
+            trading_fee_rate=0.001,
+            manual_center_price=61000,
+        )
+        lot = {
+            "id": "swing-old",
+            "level": "swing-entry-1",
+            "status": "open",
+            "remaining_quantity": 0.001,
+            "buy_price": 62823.59,
+            "target_price": 61887.80,
+        }
+
+        hold, band = strategy.decide(
+            MarketSnapshot("BTCUSDT", 63000, [63000], 0.001, 50),
+            [61000] * 168,
+            [lot],
+            124,
+        )
+        sell, _band = strategy.decide(
+            MarketSnapshot("BTCUSDT", 63800, [63800], 0.001, 50),
+            [61000] * 168,
+            [lot],
+            124,
+        )
+
+        self.assertEqual(hold.signal, Signal.HOLD)
+        self.assertEqual(sell.signal, Signal.SELL)
+        self.assertAlmostEqual(strategy.safe_target_price(lot, band.sell_price), 63703.12026)
+
     def test_split_lots_keeps_grid_and_swing_separate(self) -> None:
         grid, swing = split_lots([
             {"level": "starter"},
