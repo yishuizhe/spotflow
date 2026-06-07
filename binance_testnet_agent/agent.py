@@ -72,6 +72,7 @@ class TradingAgent:
         risk = self._risk(snapshot)
         if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._buy_can_bypass_risk(decision, risk, trend_state, scalp_state):
             decision = StrategyDecision(Signal.HOLD, risk["reason"], decision.reference_price, decision.price)
+        decision = self._sell_gate(decision, open_lots)
         order_result = self._maybe_execute(snapshot, decision)
         lot_update = self._update_ledger(decision, order_result)
         self._update_state(state, decision, order_result)
@@ -324,6 +325,32 @@ class TradingAgent:
         reason = str(risk.get("reason", ""))
         return "floating loss" in reason
 
+    def _sell_gate(self, decision: StrategyDecision, open_lots: list[dict[str, Any]]) -> StrategyDecision:
+        """Final sell insurance: block any auto-sell where the execution price is below the lot's true cost basis + fees.
+
+        This is independent of grid, swing, and defensive-scalp strategies.  If a lot was recorded with a stale
+        buy_price (e.g. pre-v1.0.14 lots that used the ticker price instead of the actual fill price), the
+        upstream strategy may generate a SELL that is actually a loss.  This gate catches those cases.
+        """
+        if decision.signal != Signal.SELL or not decision.lot_id:
+            return decision
+        lot = next((l for l in open_lots if str(l.get("id")) == decision.lot_id), None)
+        if not lot:
+            return decision
+        buy_price = float(lot.get("buy_price", 0) or 0)
+        if buy_price <= 0:
+            return decision
+        fee_rate = self.config.trading_fee_rate
+        breakeven_price = buy_price * (1 + fee_rate * 2)
+        if decision.price < breakeven_price:
+            return StrategyDecision(
+                Signal.HOLD,
+                f"sell gate blocked: price {decision.price:.2f} below lot breakeven {breakeven_price:.2f} (buy_price={buy_price:.2f})",
+                decision.reference_price,
+                decision.price,
+            )
+        return decision
+
     def _maybe_execute(self, snapshot: MarketSnapshot, decision: StrategyDecision) -> dict[str, Any] | None:
         if decision.signal == Signal.HOLD:
             return None
@@ -371,6 +398,12 @@ class TradingAgent:
                 return {"skipped": True, "reason": "quantity below minNotional", "quantity": str(rounded_qty)}
             return self.client.market_sell_qty(self.config.symbol, rounded_qty)
         except BinanceAPIError as exc:
+            message = str(exc)
+            if "-2010" in message or "insufficient balance" in message.lower():
+                if decision.signal == Signal.SELL:
+                    available = self._available_base_balance()
+                    return {"error": f"币安拒绝卖出：可用 {self.config.base_asset} 余额不足（当前可用 {available:.8f}）。请检查是否有其他卖单锁定了余额，或同步账本后再试。", "side": decision.signal.value, "level": decision.level}
+                return {"error": f"币安拒绝下单：余额不足。请检查账户余额。", "side": decision.signal.value, "level": decision.level}
             return {"error": str(exc), "side": decision.signal.value, "level": decision.level}
 
     def _available_base_balance(self) -> float:
@@ -402,6 +435,7 @@ class TradingAgent:
                 decision.level,
                 target_price,
                 True,
+                self.config.base_asset,
             )
         if decision.signal == Signal.SELL and decision.lot_id:
             return self.ledger.close_lot(decision.lot_id, order_result, self.config.trading_fee_rate)

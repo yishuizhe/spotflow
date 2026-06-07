@@ -41,6 +41,11 @@ class FakeExternalSellClient:
         }
 
 
+class FakeLockedBalanceClient(FakeExternalSellClient):
+    def account(self):
+        return {"balances": [{"asset": "BTC", "free": "0.00009", "locked": "0.00091"}]}
+
+
 class DashboardOrderTest(unittest.TestCase):
     def test_order_quote_qty_falls_back_to_price_times_executed_qty(self) -> None:
         order = {
@@ -132,6 +137,41 @@ class DashboardOrderTest(unittest.TestCase):
                 self.assertEqual(rows[0]["lot"]["level"], "swing-entry-1")
                 self.assertEqual(rows[0]["cost_price"], 62000)
                 self.assertAlmostEqual(rows[0]["estimated_net_profit"], 1.874)
+            finally:
+                os.chdir(old_cwd)
+
+    def test_limit_sell_uses_only_free_balance_and_records_partial_quantity(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+                dashboard.client = FakeLockedBalanceClient()
+                dashboard.ledger.save(
+                    [
+                        {
+                            "id": "lot-1",
+                            "level": "buy-1",
+                            "status": "open",
+                            "buy_price": 62000,
+                            "quantity": 0.001,
+                            "remaining_quantity": 0.001,
+                            "target_price": 63000,
+                        }
+                    ]
+                )
+
+                result = dashboard.manual_limit_sell("lot-1", 65000)
+
+                self.assertNotIn("error", result)
+                self.assertAlmostEqual(result["pending"]["requested_quantity"], 0.001)
+                self.assertAlmostEqual(result["pending"]["quantity"], 0.00009)
+                self.assertTrue(result["pending"]["partial_quantity"])
             finally:
                 os.chdir(old_cwd)
 

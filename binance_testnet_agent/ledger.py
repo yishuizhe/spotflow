@@ -87,6 +87,7 @@ class PositionLedger:
         level: str,
         target_price: float | None = None,
         auto_sell: bool = True,
+        base_asset: str = "",
     ) -> dict[str, Any] | None:
         executed_qty = float(order.get("executedQty", 0) or 0)
         quote_qty = float(order.get("cummulativeQuoteQty", 0) or 0)
@@ -94,11 +95,15 @@ class PositionLedger:
             return None
 
         buy_price = quote_qty / executed_qty
+        base_commission = _commission_for_asset(order, base_asset)
+        net_quantity = max(0.0, executed_qty - base_commission)
+        if net_quantity <= 0:
+            return None
         lot = Lot(
             id=f"{int(time.time() * 1000)}-{order.get('orderId', 'manual')}",
             symbol=symbol,
-            quantity=executed_qty,
-            remaining_quantity=executed_qty,
+            quantity=net_quantity,
+            remaining_quantity=net_quantity,
             buy_price=buy_price,
             buy_quote=quote_qty,
             target_price=target_price or buy_price * (1 + target_profit_pct + trading_fee_rate * 2),
@@ -110,6 +115,8 @@ class PositionLedger:
         def mutate(lots: list[dict[str, Any]]) -> dict[str, Any]:
             record = asdict(lot)
             record["level"] = level
+            record["executed_quantity"] = executed_qty
+            record["base_commission_quantity"] = base_commission
             lots.append(record)
             return record
 
@@ -239,6 +246,17 @@ def _lot_fee_quote(lot: dict[str, Any]) -> float:
     buy_fee = lot.get("buy_fee_quote") or 0
     sell_fee = lot.get("sell_fee_quote") or 0
     return float(buy_fee or 0) + float(sell_fee or 0)
+
+
+def _commission_for_asset(order: dict[str, Any], asset: str) -> float:
+    clean_asset = asset.strip().upper()
+    if not clean_asset:
+        return 0.0
+    total = 0.0
+    for fill in order.get("fills", []) or []:
+        if str(fill.get("commissionAsset", "")).upper() == clean_asset:
+            total += float(fill.get("commission", 0) or 0)
+    return total
 
 
 def _lot_net_realized_pnl(lot: dict[str, Any], trading_fee_rate: float) -> float:

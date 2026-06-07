@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.17 - 2026-06-07
+
+- Added a final sell gate in the auto-trading agent that blocks any automated sell whose execution price is below the lot's true cost basis plus bilateral fees, preventing loss-making exits from lots with stale target prices.
+- Translated Binance `-2010` balance errors in the automated agent sell path into actionable Chinese messages with the current free balance.
+- Fixed the closed-lots table ordering to sort by close time descending instead of by the original buy order, so recently closed lots appear first.
+
+## v1.0.16 - 2026-06-07
+
+- Accounted for base-asset commissions when recording the sellable quantity of newly filled buy orders.
+- Limited each new limit sell to the exchange account's current free base-asset balance, allowing a partial lot order when other orders have locked funds.
+- Replaced Binance `-2010` balance errors with actionable free/locked balance guidance.
+- Made bulk limit selling continue across lots and report successful, skipped, and failed orders instead of stopping at the first failure.
+
 ## v1.0.15 - 2026-06-07
 
 - Added a fee-aware minimum profit target for legacy and new swing lots so automatic swing exits cannot use a target below cost.

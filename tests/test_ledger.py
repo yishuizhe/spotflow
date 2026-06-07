@@ -7,6 +7,32 @@ from binance_testnet_agent.ledger import PositionLedger
 
 
 class PositionLedgerFeeTest(unittest.TestCase):
+    def test_buy_quantity_deducts_base_asset_commission(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = PositionLedger(Path(tmp) / "lots.json")
+            order = {
+                "orderId": 1,
+                "executedQty": "0.001",
+                "cummulativeQuoteQty": "62",
+                "fills": [
+                    {
+                        "price": "62000",
+                        "qty": "0.001",
+                        "commission": "0.000001",
+                        "commissionAsset": "BTC",
+                    }
+                ],
+            }
+
+            lot = ledger.add_buy("BTCUSDT", order, 0.006, 0.001, "buy-1", base_asset="BTC")
+
+            self.assertIsNotNone(lot)
+            assert lot is not None
+            self.assertAlmostEqual(lot["executed_quantity"], 0.001)
+            self.assertAlmostEqual(lot["base_commission_quantity"], 0.000001)
+            self.assertAlmostEqual(lot["quantity"], 0.000999)
+            self.assertAlmostEqual(lot["remaining_quantity"], 0.000999)
+
     def test_fee_summary_does_not_estimate_legacy_lots(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ledger = PositionLedger(Path(tmp) / "lots.json")

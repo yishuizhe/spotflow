@@ -1207,7 +1207,7 @@ HTML = """<!doctype html>
         updatePager('closed', 0, 0);
         return;
       }
-      const rows = latestClosedLots.slice().reverse();
+      const rows = latestClosedLots.slice();
       const pages = Math.max(1, Math.ceil(rows.length / closedPageSize));
       closedPage = Math.min(closedPage, pages - 1);
       rows.slice(closedPage * closedPageSize, (closedPage + 1) * closedPageSize).forEach(lot => {
@@ -1638,14 +1638,28 @@ HTML = """<!doctype html>
       if (!password) return;
       const confirmed = await uiConfirm(`确认按每个批次的预计卖价分别挂 ${latestOpenLots.length} 个限价卖单？`);
       if (!confirmed) return;
+      let success = 0;
+      let skipped = 0;
+      const failures = [];
       for (const lot of latestOpenLots) {
-        if (lot.pending_limit_sell_order_id) continue;
+        if (lot.pending_limit_sell_order_id) { skipped += 1; continue; }
         const price = Number(lot.effective_target_price || lot.target_price || 0);
-        if (!price) continue;
-        const result = await apiGet('/api/manual/limit-sell', { lot_id: lot.id, limit_price: price }, password);
-        if (result.error) return uiAlert(result.error, '挂单失败');
+        if (!price) { skipped += 1; continue; }
+        try {
+          const result = await apiGet('/api/manual/limit-sell', { lot_id: lot.id, limit_price: price }, password);
+          if (result.error) failures.push(`${lot.level || lot.id}：${result.error}`);
+          else success += 1;
+        } catch (err) {
+          failures.push(`${lot.level || lot.id}：${err.message || String(err)}`);
+        }
       }
-      refresh();
+      await refresh();
+      const summary = `一键限价卖完成：成功 ${success} 个，跳过 ${skipped} 个，失败 ${failures.length} 个。`;
+      if (failures.length) {
+        await uiAlert(`${summary}\n\n${failures.slice(0, 3).join('\n')}`, '挂单结果');
+      } else {
+        showNotice(summary);
+      }
     }
     async function cancelPendingOrder(orderId) {
       const password = await uiPrompt('输入交易开关密码以取消限价挂单', '', 'password');
@@ -2358,7 +2372,8 @@ class Dashboard:
 
     def closed_lots(self, limit: int = 200) -> list[dict[str, Any]]:
         lots = [lot for lot in self.ledger.lots() if lot.get("status") == "closed"]
-        return [self._lot_with_fee(lot) for lot in lots[-limit:]]
+        lots.sort(key=lambda l: l.get("closed_at", ""), reverse=True)
+        return [self._lot_with_fee(lot) for lot in lots[:limit]]
 
     def _lot_with_fee(self, lot: dict[str, Any]) -> dict[str, Any]:
         enriched = dict(lot)
@@ -2696,12 +2711,25 @@ class Dashboard:
     def manual_buy(self, quote_size: float, target_profit_pct: float, auto_sell: bool | None = None) -> dict[str, Any]:
         if quote_size <= 0:
             return {"error": "manual buy quote size must be positive"}
+        account = self.client.account()
+        balances = {item["asset"]: item for item in account.get("balances", [])}
+        quote_free, quote_locked, _quote_total = _balance_parts(balances, self.config.quote_asset)
+        if quote_size > quote_free:
+            return {
+                "error": (
+                    f"当前可用 {self.config.quote_asset} 只有 {quote_free:.2f}，"
+                    f"另有 {quote_locked:.2f} 被限价买单锁定。请先取消已有买单或降低买入金额。"
+                )
+            }
         target_profit_pct = max(0.0, target_profit_pct)
         auto_sell_enabled = self.manual_buy_auto_sell_enabled() if auto_sell is None else auto_sell
         filters = self.client.symbol_filters(self.config.symbol)
         if Decimal(str(quote_size)) < filters.min_notional:
             return {"error": f"quote size below minNotional {filters.min_notional}"}
-        order = self.client.market_buy_quote(self.config.symbol, quote_size)
+        try:
+            order = self.client.market_buy_quote(self.config.symbol, quote_size)
+        except BinanceAPIError as exc:
+            return {"error": self._friendly_balance_error(exc, self.config.quote_asset, quote_free, quote_locked)}
         lot = self.ledger.add_buy(
             self.config.symbol,
             order,
@@ -2710,6 +2738,7 @@ class Dashboard:
             "manual-entry",
             None,
             auto_sell_enabled,
+            self.config.base_asset,
         )
         self._record_manual_trade("MANUAL_BUY", quote_size, order, lot)
         return {"order": order, "lot": lot}
@@ -2725,6 +2754,16 @@ class Dashboard:
             return {"error": "manual limit buy quote size must be positive"}
         if limit_price <= 0:
             return {"error": "limit price must be positive"}
+        account = self.client.account()
+        balances = {item["asset"]: item for item in account.get("balances", [])}
+        quote_free, quote_locked, _quote_total = _balance_parts(balances, self.config.quote_asset)
+        if quote_size > quote_free:
+            return {
+                "error": (
+                    f"当前可用 {self.config.quote_asset} 只有 {quote_free:.2f}，"
+                    f"另有 {quote_locked:.2f} 被其他限价买单锁定。请先取消已有买单或降低金额。"
+                )
+            }
         filters = self.client.symbol_filters(self.config.symbol)
         price = self.client.round_price(Decimal(str(limit_price)), filters)
         quantity = self.client.round_quantity(Decimal(str(quote_size)) / price, filters)
@@ -2733,7 +2772,10 @@ class Dashboard:
         if quantity * price < filters.min_notional:
             return {"error": f"quote size below minNotional {filters.min_notional}"}
         auto_sell_enabled = self.manual_buy_auto_sell_enabled() if auto_sell is None else auto_sell
-        order = self.client.limit_buy_qty(self.config.symbol, quantity, price)
+        try:
+            order = self.client.limit_buy_qty(self.config.symbol, quantity, price)
+        except BinanceAPIError as exc:
+            return {"error": self._friendly_balance_error(exc, self.config.quote_asset, quote_free, quote_locked)}
         pending = self.add_pending_order(
             {
                 "order_id": int(order["orderId"]),
@@ -2759,16 +2801,38 @@ class Dashboard:
         if quantity <= 0:
             return {"error": "lot has no remaining quantity"}
         filters = self.client.symbol_filters(self.config.symbol)
-        rounded_qty = self.client.round_quantity(quantity, filters)
+        account = self.client.account()
+        balances = {item["asset"]: item for item in account.get("balances", [])}
+        base_free, base_locked, _base_total = _balance_parts(balances, self.config.base_asset)
+        rounded_qty = self.client.round_quantity(min(quantity, Decimal(str(base_free))), filters)
         if rounded_qty < filters.min_qty:
-            return {"error": f"quantity below minQty {filters.min_qty}"}
+            return {
+                "error": (
+                    f"当前可用 {self.config.base_asset} 只有 {base_free:.8f}，"
+                    f"另有 {base_locked:.8f} 被限价卖单锁定。请先取消已有卖单或等待成交。"
+                )
+            }
         price = self.client.ticker_price(self.config.symbol)
         if rounded_qty * Decimal(str(price)) < filters.min_notional:
             return {"error": f"quantity below minNotional {filters.min_notional}"}
-        order = self.client.market_sell_qty(self.config.symbol, rounded_qty)
+        try:
+            order = self.client.market_sell_qty(self.config.symbol, rounded_qty)
+        except BinanceAPIError as exc:
+            return {"error": self._friendly_balance_error(exc, self.config.base_asset, base_free, base_locked)}
         updated = self.ledger.close_lot(lot_id, order, self.config.trading_fee_rate)
         self._record_manual_trade("MANUAL_SELL", float(rounded_qty) * price, order, updated)
         return {"order": order, "lot": updated}
+
+    @staticmethod
+    def _friendly_balance_error(exc: BinanceAPIError, asset: str, free: float, locked: float) -> str:
+        message = str(exc)
+        if "-2010" in message or "insufficient balance" in message.lower():
+            return (
+                f"币安拒绝下单：可用 {asset} 余额不足。"
+                f"当前可用 {free:.8f}，锁定 {locked:.8f}。"
+                "请先取消占用余额的限价挂单、等待挂单成交，或降低本次下单数量。"
+            )
+        return message
 
     def set_manual_lot_auto_sell(self, lot_id: str, enabled: bool) -> dict[str, Any]:
         lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
@@ -2792,17 +2856,41 @@ class Dashboard:
             return {"error": "lot has no remaining quantity"}
         filters = self.client.symbol_filters(self.config.symbol)
         price = self.client.round_price(Decimal(str(limit_price)), filters)
-        rounded_qty = self.client.round_quantity(quantity, filters)
+        account = self.client.account()
+        balances = {item["asset"]: item for item in account.get("balances", [])}
+        base_free, base_locked, _base_total = _balance_parts(balances, self.config.base_asset)
+        available_qty = min(quantity, Decimal(str(base_free)))
+        rounded_qty = self.client.round_quantity(available_qty, filters)
         if rounded_qty < filters.min_qty:
             self.clear_lot_pending_sell(lot_id)
-            return {"error": f"quantity below minQty {filters.min_qty}"}
+            return {
+                "error": (
+                    f"当前可用 {self.config.base_asset} 只有 {base_free:.8f}，"
+                    f"另有 {base_locked:.8f} 被其他限价单锁定，无法为该批次继续挂单。"
+                    "请先取消已有挂单或等待成交。"
+                )
+            }
         if rounded_qty * price < filters.min_notional:
             self.clear_lot_pending_sell(lot_id)
-            return {"error": f"quantity below minNotional {filters.min_notional}"}
+            return {
+                "error": (
+                    f"当前可用 {self.config.base_asset} 只能挂 {rounded_qty}，"
+                    f"订单金额低于最小下单额 {filters.min_notional}。"
+                    "可能有余额被其他限价单锁定。"
+                )
+            }
         try:
             order = self.client.limit_sell_qty(self.config.symbol, rounded_qty, price)
-        except BinanceAPIError:
+        except BinanceAPIError as exc:
             self.clear_lot_pending_sell(lot_id)
+            if "-2010" in str(exc) or "insufficient balance" in str(exc).lower():
+                return {
+                    "error": (
+                        f"币安拒绝挂单：可用 {self.config.base_asset} 余额不足。"
+                        f"当前可用 {base_free:.8f}，锁定 {base_locked:.8f}。"
+                        "请取消其他卖单或同步外部成交后再试。"
+                    )
+                }
             raise
         self.mark_lot_pending_sell(lot_id, int(order["orderId"]), float(price))
         pending = self.add_pending_order(
@@ -2813,6 +2901,8 @@ class Dashboard:
                 "lot_id": lot_id,
                 "limit_price": float(price),
                 "quantity": float(rounded_qty),
+                "requested_quantity": float(quantity),
+                "partial_quantity": rounded_qty < quantity,
                 "quote_size": float(rounded_qty * price),
                 "status": order.get("status", "NEW"),
                 "created_at": _utc_now(),
@@ -2984,6 +3074,7 @@ class Dashboard:
                             str(item.get("level", "manual-limit-buy")),
                             None,
                             bool(item.get("auto_sell", False)),
+                            self.config.base_asset,
                         )
                         self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, order, lot)
                     elif item.get("side") == "SELL":
