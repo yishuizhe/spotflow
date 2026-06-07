@@ -644,8 +644,8 @@ HTML = """<!doctype html>
         <input type="checkbox" id="loginTrust" style="width:auto;margin-top:2px;accent-color:var(--accent)">
         <span>信任此设备，长期免密<br><span class="muted">仅用于自己的设备；页面密码失效或主动取消信任后会重新登录。</span></span>
       </label>
-      <div class="muted" id="loginStatus" style="margin-top:12px">请输入页面密码后查看实盘看板。</div>
-      <div class="modal-actions"><button class="action-button" id="loginButton">登录</button></div>
+      <div class="muted" id="loginStatus" style="margin-top:12px">正在加载…</div>
+      <div class="modal-actions"><button class="action-button" id="loginButton" onclick="window._doLogin && window._doLogin()">登录</button></div>
     </div>
   </div>
   <div class="modal" id="actionModal">
@@ -698,6 +698,7 @@ HTML = """<!doctype html>
     <div class="mascot-bubble" id="mascotBubble">正在读取 BTC 走势，稍后告诉你当前更像震荡、下跌还是反弹。</div>
   </aside>
   <script>
+    document.getElementById('loginStatus').textContent = '请输入页面密码后查看实盘看板。';
     const fmt = (n, digits = 4) => Number(n).toLocaleString(undefined, { maximumFractionDigits: digits });
     const rangeLabels = { minute: '近 60 分钟', '5m': '近 5 分钟', '15m': '近 15 分钟', '1h': '近 1 小时', '4h': '近 4 小时', day: '近 24 小时', week: '近 7 天' };
     const rangeOrder = ['5m', '15m', '1h', '4h', 'day', 'week'];
@@ -1421,7 +1422,7 @@ HTML = """<!doctype html>
         document.getElementById('updated').textContent = '刷新失败 ' + new Date().toLocaleString();
       }
     }
-    document.getElementById('loginButton').addEventListener('click', async () => {
+    window._doLogin = async () => {
       dashboardPassword = document.getElementById('loginPassword').value;
       if (!dashboardPassword) return;
       const rememberLogin = document.getElementById('loginRemember').checked;
@@ -1446,7 +1447,8 @@ HTML = """<!doctype html>
         refresh();
         loadComments();
       }
-    });
+    };
+    document.getElementById('loginButton').addEventListener('click', () => window._doLogin());
     document.getElementById('loginPassword').addEventListener('keydown', event => {
       if (event.key === 'Enter') document.getElementById('loginButton').click();
     });
