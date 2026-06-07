@@ -551,10 +551,12 @@ HTML = """<!doctype html>
     </section>
     <section class="panel" style="margin-top:14px">
       <div class="label">限价挂单</div>
-      <table>
-        <thead><tr><th>时间</th><th>方向</th><th>限价</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody id="pendingOrders"><tr><td colspan="6" class="muted">暂无限价挂单</td></tr></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>时间</th><th>方向</th><th>关联批次</th><th>成本价</th><th>限价</th><th>数量</th><th>预计净收益</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="pendingOrders"><tr><td colspan="9" class="muted">暂无限价挂单</td></tr></tbody>
+        </table>
+      </div>
     </section>
     <section class="panel" style="margin-top:14px">
       <div class="label">已平批次</div>
@@ -1171,18 +1173,27 @@ HTML = """<!doctype html>
       tbody.innerHTML = '';
       const active = (orders || []).slice().reverse();
       if (!active.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="muted">暂无限价挂单</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="muted">暂无限价挂单</td></tr>';
         return;
       }
       active.forEach(order => {
         const canCancel = !order.processed && !['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED'].includes(order.status);
         const sideClass = order.side === 'BUY' ? 'profit' : 'warn';
         const action = canCancel ? `<button class="secondary-button" data-cancel-order="${order.order_id}">取消</button>` : '--';
+        const lot = order.lot || {};
+        const batch = order.side === 'BUY'
+          ? '成交后新建批次'
+          : (order.lot_id ? lotDisplay(lot) : '外部持仓');
+        const cost = Number(order.cost_price || lot.buy_price || (order.side === 'BUY' ? order.limit_price : 0));
+        const estimatedNet = order.estimated_net_profit;
+        const netText = estimatedNet === null || estimatedNet === undefined
+          ? '--'
+          : `<span class="${Number(estimatedNet) >= 0 ? 'profit' : 'loss'}">${fmt(estimatedNet, 2)}</span>`;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${sideLabel(order.side)}</span></td><td>${fmt(order.limit_price || 0, 2)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${order.status || '--'}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${order.created_at ? new Date(order.created_at).toLocaleString() : '--'}</td><td><span class="badge ${sideClass}">${sideLabel(order.side)}</span></td><td>${batch}</td><td>${cost > 0 ? fmt(cost, 2) : '--'}</td><td>${fmt(order.limit_price || 0, 2)}</td><td>${fmt(order.quantity || 0, 8)}</td><td>${netText}</td><td>${order.status || '--'}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
-      applyMobileLabels(tbody, ['时间', '方向', '限价', '数量', '状态', '操作']);
+      applyMobileLabels(tbody, ['时间', '方向', '关联批次', '成本价', '限价', '数量', '预计净收益', '状态', '操作']);
       tbody.querySelectorAll('[data-cancel-order]').forEach(button => {
         button.addEventListener('click', () => cancelPendingOrder(button.dataset.cancelOrder));
       });
@@ -2249,6 +2260,7 @@ class Dashboard:
         raw_grid_lots, raw_swing_lots = split_lots(raw_open_lots)
         raw_scalp_lots = [lot for lot in raw_open_lots if is_scalp_lot(lot)]
         open_lots = [self._lot_with_fee(lot) for lot in self._lots_for_strategy(raw_grid_lots) + raw_swing_lots + raw_scalp_lots]
+        pending_orders = self._pending_orders_with_lots(pending_orders)
         sizing = position_sizing(
             quote_balance + base_balance * price,
             self.config.order_quote_size,
@@ -2351,10 +2363,15 @@ class Dashboard:
     def _lot_with_fee(self, lot: dict[str, Any]) -> dict[str, Any]:
         enriched = dict(lot)
         if is_swing_lot(enriched):
-            target_price = float(enriched.get("target_price") or 0)
+            buy_price = float(enriched.get("buy_price") or 0)
+            recorded_target = float(enriched.get("target_price") or 0)
+            safe_target = buy_price * (
+                1 + self.config.swing_min_band_pct + self.config.trading_fee_rate * 2
+            )
+            target_price = max(recorded_target, safe_target)
             enriched["effective_target_price"] = target_price
-            enriched["target_price_adjusted"] = False
-            enriched["target_note"] = "swing"
+            enriched["target_price_adjusted"] = target_price > recorded_target
+            enriched["target_note"] = "防亏保护" if target_price > recorded_target else "波段"
             enriched["target_profit_pct_effective"] = (
                 (target_price / float(enriched.get("buy_price") or 1)) - 1
                 if target_price > 0 and float(enriched.get("buy_price") or 0) > 0
@@ -2445,6 +2462,7 @@ class Dashboard:
             add_step_pct=self.config.swing_add_step_pct,
             min_band_pct=self.config.swing_min_band_pct,
             max_band_pct=self.config.swing_max_band_pct,
+            trading_fee_rate=self.config.trading_fee_rate,
             manual_center_price=self.config.swing_manual_center_price,
         ).band(price, closes, swing_lots, total_value_quote).to_dict()
 
@@ -2862,6 +2880,33 @@ class Dashboard:
 
     def pending_orders(self) -> list[dict[str, Any]]:
         return self.pending_store.load()
+
+    def _pending_orders_with_lots(self, orders: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        lots_by_id = {str(lot.get("id")): self._lot_with_fee(lot) for lot in self.ledger.lots()}
+        enriched_orders: list[dict[str, Any]] = []
+        for order in orders:
+            enriched = dict(order)
+            lot = lots_by_id.get(str(order.get("lot_id", "")))
+            if lot:
+                quantity = float(order.get("quantity", 0) or 0)
+                buy_price = float(lot.get("buy_price", 0) or 0)
+                limit_price = float(order.get("limit_price", 0) or 0)
+                original_quantity = float(lot.get("quantity", 0) or lot.get("remaining_quantity", 0) or 0)
+                buy_fee = float(lot.get("buy_fee_quote", 0) or 0)
+                allocated_buy_fee = buy_fee * min(1.0, quantity / original_quantity) if original_quantity > 0 else 0.0
+                sell_fee = limit_price * quantity * self.config.trading_fee_rate
+                enriched["lot"] = lot
+                enriched["cost_price"] = buy_price
+                enriched["estimated_net_profit"] = (
+                    (limit_price - buy_price) * quantity - allocated_buy_fee - sell_fee
+                )
+            elif str(order.get("side", "")).upper() == "BUY":
+                enriched["cost_price"] = float(order.get("limit_price", 0) or 0)
+                enriched["estimated_net_profit"] = None
+            else:
+                enriched["estimated_net_profit"] = None
+            enriched_orders.append(enriched)
+        return enriched_orders
 
     def save_pending_orders(self, orders: list[dict[str, Any]]) -> None:
         self.pending_store.save(orders)

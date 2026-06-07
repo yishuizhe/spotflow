@@ -232,6 +232,7 @@ class TradingAgent:
             add_step_pct=self.config.swing_add_step_pct,
             min_band_pct=self.config.swing_min_band_pct,
             max_band_pct=self.config.swing_max_band_pct,
+            trading_fee_rate=self.config.trading_fee_rate,
             manual_center_price=self.config.swing_manual_center_price,
         ).decide(snapshot, closes, swing_lots, total_value)
 

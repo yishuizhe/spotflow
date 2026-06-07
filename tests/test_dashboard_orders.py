@@ -91,6 +91,50 @@ class DashboardOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_pending_limit_sell_includes_lot_cost_and_estimated_net_profit(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret", trading_fee_rate=0.001),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+                dashboard.ledger.save(
+                    [
+                        {
+                            "id": "lot-1",
+                            "level": "swing-entry-1",
+                            "status": "open",
+                            "buy_price": 62000,
+                            "quantity": 0.001,
+                            "remaining_quantity": 0.001,
+                            "buy_fee_quote": 0.062,
+                            "target_price": 63000,
+                        }
+                    ]
+                )
+
+                rows = dashboard._pending_orders_with_lots(
+                    [
+                        {
+                            "order_id": 1,
+                            "side": "SELL",
+                            "lot_id": "lot-1",
+                            "limit_price": 64000,
+                            "quantity": 0.001,
+                        }
+                    ]
+                )
+
+                self.assertEqual(rows[0]["lot"]["level"], "swing-entry-1")
+                self.assertEqual(rows[0]["cost_price"], 62000)
+                self.assertAlmostEqual(rows[0]["estimated_net_profit"], 1.874)
+            finally:
+                os.chdir(old_cwd)
+
     def test_settings_exposes_and_updates_defensive_scalp_pool_fields(self) -> None:
         with TemporaryDirectory() as tmp:
             old_cwd = Path.cwd()

@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.15 - 2026-06-07
+
+- Added a fee-aware minimum profit target for legacy and new swing lots so automatic swing exits cannot use a target below cost.
+- Display corrected swing targets as protected targets on the dashboard.
+- Added linked lot, cost price, and estimated net profit columns to pending limit orders.
+- Added regression tests for legacy swing targets and pending-order cost/profit enrichment.
+
 ## v1.0.14 - 2026-06-07
 
 - Rebased strategy targets on the actual market-buy fill price instead of the pre-order ticker price.

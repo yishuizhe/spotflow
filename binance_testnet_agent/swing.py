@@ -33,6 +33,7 @@ class SwingStrategy:
     add_step_pct: float
     min_band_pct: float
     max_band_pct: float
+    trading_fee_rate: float = 0.0
     manual_center_price: float = 0.0
 
     def decide(
@@ -56,10 +57,10 @@ class SwingStrategy:
             lot for lot in open_lots
             if lot.get("auto_sell", True) is not False
             and not lot.get("pending_limit_sell_order_id")
-            and snapshot.price >= float(lot.get("target_price") or band.sell_price)
+            and snapshot.price >= self.safe_target_price(lot, band.sell_price)
         ]
         if sellable_lots:
-            lot = min(sellable_lots, key=lambda item: float(item.get("target_price") or band.sell_price))
+            lot = min(sellable_lots, key=lambda item: self.safe_target_price(item, band.sell_price))
             return (
                 StrategyDecision(
                     Signal.SELL,
@@ -70,7 +71,7 @@ class SwingStrategy:
                     "swing-target",
                     str(lot.get("id")),
                     float(lot.get("remaining_quantity", 0)),
-                    float(lot.get("target_price") or band.sell_price),
+                    self.safe_target_price(lot, band.sell_price),
                 ),
                 band,
             )
@@ -102,6 +103,12 @@ class SwingStrategy:
             ),
             band,
         )
+
+    def safe_target_price(self, lot: dict[str, Any], fallback: float = 0.0) -> float:
+        buy_price = float(lot.get("buy_price") or 0)
+        recorded_target = float(lot.get("target_price") or fallback)
+        profitable_target = buy_price * (1 + self.min_band_pct + self.trading_fee_rate * 2)
+        return max(recorded_target, profitable_target)
 
     def band(
         self,
