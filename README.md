@@ -1,4 +1,6 @@
-# Binance Spot Live Agent
+# SpotFlow
+
+币安现货量化交易看板与自动交易 Agent。
 
 当前版本：`v1.0.13`
 
