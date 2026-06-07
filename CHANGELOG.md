@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.13 - 2026-06-07
+
+- Added a session-only comment administrator mode protected by the trading management password.
+- Administrators can publish top-level comments with an administrator badge, reply to visitors, and delete individual replies or complete comment threads.
+- Enforced comment deletion permissions on the server and added confirmation before irreversible deletion.
+
 ## v1.0.12 - 2026-06-06
 
 - Added a trusted-device login mode that remains signed in until credentials fail or the user explicitly revokes trust.

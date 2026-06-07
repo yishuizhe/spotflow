@@ -154,7 +154,7 @@ class DashboardOrderTest(unittest.TestCase):
 
                 self.assertEqual(len(dashboard.comments()), 2)
                 self.assertEqual(reply["parent_id"], comment["id"])
-                self.assertEqual(reply["name"], "作者")
+                self.assertEqual(reply["name"], "管理员")
                 self.assertTrue(reply["is_author"])
                 self.assertTrue(Path("data/comments.sqlite3").exists())
             finally:
@@ -174,6 +174,31 @@ class DashboardOrderTest(unittest.TestCase):
 
                 self.assertIn("error", dashboard.add_comment("", ""))
                 self.assertIn("error", dashboard.add_comment("作者", "回复", "missing", is_author=True))
+            finally:
+                os.chdir(old_cwd)
+
+    def test_admin_can_delete_comment_and_nested_replies(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                comment = dashboard.add_comment("访客", "需要删除")["comment"]
+                dashboard.add_comment("ignored", "管理员回复", comment["id"], is_author=True)
+                retained = dashboard.add_comment("另一位访客", "保留")["comment"]
+
+                result = dashboard.delete_comment(comment["id"])
+
+                self.assertEqual(result["deleted"], 2)
+                self.assertEqual([item["id"] for item in dashboard.comments()], [retained["id"]])
+                self.assertIn("error", dashboard.delete_comment(comment["id"]))
+                self.assertIn("error", dashboard.delete_comment(""))
             finally:
                 os.chdir(old_cwd)
 
