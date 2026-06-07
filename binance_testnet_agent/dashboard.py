@@ -891,7 +891,14 @@ HTML = """<!doctype html>
         clearRememberedLogin();
         document.getElementById('loginModal').classList.add('open');
         document.getElementById('loginPassword').value = '';
-        document.getElementById('loginStatus').textContent = '登录信息已失效，请重新输入页面密码。';
+        const msg = String(err.message || err);
+        if (msg.includes('not logged in') || msg.includes('not logged')) {
+          document.getElementById('loginStatus').textContent = '密码错误，请重试。';
+        } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('timeout')) {
+          document.getElementById('loginStatus').textContent = '无法连接到服务器，请检查网络。';
+        } else {
+          document.getElementById('loginStatus').textContent = `登录失败：${msg.slice(0, 80)}`;
+        }
         return false;
       }
     }
