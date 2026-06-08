@@ -59,6 +59,7 @@ class DefensiveScalpStrategy:
         sellable = [
             lot for lot in open_lots
             if not lot.get("pending_limit_sell_order_id")
+            and lot.get("auto_sell", True) is not False
             and snapshot.price >= self.safe_target_price(lot)
         ]
         if sellable:
