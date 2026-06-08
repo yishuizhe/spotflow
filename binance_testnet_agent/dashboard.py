@@ -557,6 +557,7 @@ HTML = """<!doctype html>
           <tbody id="pendingOrders"><tr><td colspan="9" class="muted">暂无限价挂单</td></tr></tbody>
         </table>
       </div>
+      <div class="pager"><button id="pendingPrev">上一页</button><span id="pendingPage">1 / 1</span><button id="pendingNext">下一页</button></div>
     </section>
     <section class="panel" style="margin-top:14px">
       <div class="label">已平批次</div>
@@ -717,6 +718,7 @@ HTML = """<!doctype html>
     let tradePage = 0;
     let closedPage = 0;
     let openPage = 0;
+    let pendingPage = 0;
     let rangeWheelLocked = false;
     let settingsLoaded = false;
     const loginCacheKey = 'dashboardPasswordCache';
@@ -753,6 +755,7 @@ HTML = """<!doctype html>
     const tradePageSize = 9;
     const closedPageSize = 8;
     const openPageSize = 6;
+    const pendingPageSize = 6;
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
     const chartTip = document.getElementById('chartTip');
@@ -1182,9 +1185,12 @@ HTML = """<!doctype html>
       const active = (orders || []).slice().reverse();
       if (!active.length) {
         tbody.innerHTML = '<tr><td colspan="9" class="muted">暂无限价挂单</td></tr>';
+        updatePager('pending', 0, 0);
         return;
       }
-      active.forEach(order => {
+      const pages = Math.max(1, Math.ceil(active.length / pendingPageSize));
+      pendingPage = Math.min(pendingPage, pages - 1);
+      active.slice(pendingPage * pendingPageSize, (pendingPage + 1) * pendingPageSize).forEach(order => {
         const canCancel = !order.processed && !['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED'].includes(order.status);
         const sideClass = order.side === 'BUY' ? 'profit' : 'warn';
         const action = canCancel ? `<button class="secondary-button" data-cancel-order="${order.order_id}">取消</button>` : '--';
@@ -1205,6 +1211,7 @@ HTML = """<!doctype html>
       tbody.querySelectorAll('[data-cancel-order]').forEach(button => {
         button.addEventListener('click', () => cancelPendingOrder(button.dataset.cancelOrder));
       });
+      updatePager('pending', pendingPage, pages);
     }
     function renderClosedLots(lots) {
       latestClosedLots = lots || latestClosedLots;
@@ -1506,6 +1513,8 @@ HTML = """<!doctype html>
     document.getElementById('tradeNext').addEventListener('click', () => { tradePage += 1; renderTrades(); });
     document.getElementById('closedPrev').addEventListener('click', () => { closedPage = Math.max(0, closedPage - 1); renderClosedLots(); });
     document.getElementById('closedNext').addEventListener('click', () => { closedPage += 1; renderClosedLots(); });
+    document.getElementById('pendingPrev').addEventListener('click', () => { pendingPage = Math.max(0, pendingPage - 1); renderPendingOrders(latestPendingOrders); });
+    document.getElementById('pendingNext').addEventListener('click', () => { pendingPage += 1; renderPendingOrders(latestPendingOrders); });
     document.getElementById('openPrev').addEventListener('click', () => {
       openPage = Math.max(0, openPage - 1);
       renderOpenLots(latestOpenLots, latestOpenPrice, latestPendingOrders);
