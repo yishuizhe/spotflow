@@ -132,22 +132,28 @@ class PositionLedger:
             for lot in lots:
                 if lot.get("id") != lot_id or lot.get("status") != "open":
                     continue
-                sold_qty = min(executed_qty, float(lot["remaining_quantity"]))
+                previous_remaining = float(lot["remaining_quantity"])
+                sold_qty = min(executed_qty, previous_remaining)
                 sell_price = quote_qty / executed_qty
-                cost = float(lot["buy_price"]) * sold_qty
                 proceeds = sell_price * sold_qty
+                original_quantity = float(lot.get("quantity") or previous_remaining)
+                cumulative_sold_qty = min(original_quantity, original_quantity - previous_remaining + sold_qty)
+                cumulative_cost = float(lot["buy_price"]) * cumulative_sold_qty
+                cumulative_proceeds = float(lot.get("sell_quote") or 0) + proceeds
                 buy_fee = float(lot.get("buy_fee_quote") or 0)
+                allocated_buy_fee = buy_fee * min(1.0, cumulative_sold_qty / original_quantity) if original_quantity > 0 else 0.0
                 sell_fee = proceeds * trading_fee_rate
-                total_fee = buy_fee + sell_fee
-                remaining = max(float(lot["remaining_quantity"]) - sold_qty, 0.0)
+                cumulative_sell_fee = float(lot.get("sell_fee_quote") or 0) + sell_fee
+                total_fee = allocated_buy_fee + cumulative_sell_fee
+                remaining = max(previous_remaining - sold_qty, 0.0)
                 lot["remaining_quantity"] = remaining
-                lot["sell_price"] = sell_price
-                lot["sell_quote"] = proceeds
-                lot["realized_pnl"] = proceeds - cost
+                lot["sell_price"] = cumulative_proceeds / cumulative_sold_qty
+                lot["sell_quote"] = cumulative_proceeds
+                lot["realized_pnl"] = cumulative_proceeds - cumulative_cost
                 lot["buy_fee_quote"] = buy_fee
-                lot["sell_fee_quote"] = sell_fee
+                lot["sell_fee_quote"] = cumulative_sell_fee
                 lot["total_fee_quote"] = total_fee
-                lot["net_realized_pnl"] = proceeds - cost - total_fee
+                lot["net_realized_pnl"] = cumulative_proceeds - cumulative_cost - total_fee
                 if remaining <= 0.00000001:
                     lot["status"] = "closed"
                     lot["closed_at"] = _now()
@@ -175,20 +181,25 @@ class PositionLedger:
                 sold_qty = min(open_qty, quantity if quantity and quantity > 0 else open_qty)
                 if sold_qty <= 0:
                     return None
-                cost = float(lot["buy_price"]) * sold_qty
                 proceeds = sell_price * sold_qty
+                original_quantity = float(lot.get("quantity") or open_qty)
+                cumulative_sold_qty = min(original_quantity, original_quantity - open_qty + sold_qty)
+                cumulative_cost = float(lot["buy_price"]) * cumulative_sold_qty
+                cumulative_proceeds = float(lot.get("sell_quote") or 0) + proceeds
                 buy_fee = float(lot.get("buy_fee_quote") or 0)
+                allocated_buy_fee = buy_fee * min(1.0, cumulative_sold_qty / original_quantity) if original_quantity > 0 else 0.0
                 sell_fee = proceeds * trading_fee_rate
-                total_fee = buy_fee + sell_fee
+                cumulative_sell_fee = float(lot.get("sell_fee_quote") or 0) + sell_fee
+                total_fee = allocated_buy_fee + cumulative_sell_fee
                 remaining = max(open_qty - sold_qty, 0.0)
                 lot["remaining_quantity"] = remaining
-                lot["sell_price"] = sell_price
-                lot["sell_quote"] = proceeds
-                lot["realized_pnl"] = proceeds - cost
+                lot["sell_price"] = cumulative_proceeds / cumulative_sold_qty
+                lot["sell_quote"] = cumulative_proceeds
+                lot["realized_pnl"] = cumulative_proceeds - cumulative_cost
                 lot["buy_fee_quote"] = buy_fee
-                lot["sell_fee_quote"] = sell_fee
+                lot["sell_fee_quote"] = cumulative_sell_fee
                 lot["total_fee_quote"] = total_fee
-                lot["net_realized_pnl"] = proceeds - cost - total_fee
+                lot["net_realized_pnl"] = cumulative_proceeds - cumulative_cost - total_fee
                 lot["external_close"] = True
                 lot["external_close_note"] = note
                 lot["manual_sell_price"] = sell_price
@@ -208,6 +219,22 @@ class PositionLedger:
                 lot["auto_sell"] = enabled
                 return lot
             return None
+
+        return self.update_lots(mutate)
+
+    def set_all_auto_sell(self, enabled: bool) -> dict[str, int]:
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, int]:
+            updated = 0
+            unchanged = 0
+            for lot in lots:
+                if lot.get("status") != "open" or float(lot.get("remaining_quantity", 0) or 0) <= 0:
+                    continue
+                if lot.get("auto_sell", True) is enabled:
+                    unchanged += 1
+                    continue
+                lot["auto_sell"] = enabled
+                updated += 1
+            return {"updated": updated, "unchanged": unchanged}
 
         return self.update_lots(mutate)
 

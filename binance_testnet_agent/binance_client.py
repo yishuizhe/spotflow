@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import secrets
 import subprocess
 import time
 from dataclasses import dataclass
@@ -52,9 +53,7 @@ class BinanceSpotClient:
         return self._signed_request("GET", "/api/v3/account")
 
     def market_buy_quote(self, symbol: str, quote_order_qty: float) -> dict[str, Any]:
-        return self._signed_request(
-            "POST",
-            "/api/v3/order",
+        return self._submit_order(
             {
                 "symbol": symbol,
                 "side": "BUY",
@@ -64,9 +63,7 @@ class BinanceSpotClient:
         )
 
     def market_sell_qty(self, symbol: str, quantity: Decimal) -> dict[str, Any]:
-        return self._signed_request(
-            "POST",
-            "/api/v3/order",
+        return self._submit_order(
             {
                 "symbol": symbol,
                 "side": "SELL",
@@ -76,9 +73,7 @@ class BinanceSpotClient:
         )
 
     def limit_buy_qty(self, symbol: str, quantity: Decimal, price: Decimal) -> dict[str, Any]:
-        return self._signed_request(
-            "POST",
-            "/api/v3/order",
+        return self._submit_order(
             {
                 "symbol": symbol,
                 "side": "BUY",
@@ -90,9 +85,7 @@ class BinanceSpotClient:
         )
 
     def limit_sell_qty(self, symbol: str, quantity: Decimal, price: Decimal) -> dict[str, Any]:
-        return self._signed_request(
-            "POST",
-            "/api/v3/order",
+        return self._submit_order(
             {
                 "symbol": symbol,
                 "side": "SELL",
@@ -105,6 +98,13 @@ class BinanceSpotClient:
 
     def order(self, symbol: str, order_id: int) -> dict[str, Any]:
         return self._signed_request("GET", "/api/v3/order", {"symbol": symbol, "orderId": order_id})
+
+    def order_by_client_id(self, symbol: str, client_order_id: str) -> dict[str, Any]:
+        return self._signed_request(
+            "GET",
+            "/api/v3/order",
+            {"symbol": symbol, "origClientOrderId": client_order_id},
+        )
 
     def cancel_order(self, symbol: str, order_id: int) -> dict[str, Any]:
         return self._signed_request("DELETE", "/api/v3/order", {"symbol": symbol, "orderId": order_id})
@@ -149,6 +149,20 @@ class BinanceSpotClient:
         signed_params["signature"] = signature
         return self._request(method, path, signed_params, signed=True)
 
+    def _submit_order(self, params: dict[str, Any]) -> dict[str, Any]:
+        order_params = dict(params)
+        client_order_id = f"sf-{int(time.time() * 1000):x}-{secrets.token_hex(4)}"
+        order_params["newClientOrderId"] = client_order_id
+        try:
+            return self._signed_request("POST", "/api/v3/order", order_params)
+        except BinanceAPIError as exc:
+            if "Ambiguous network error" not in str(exc):
+                raise
+            try:
+                return self.order_by_client_id(str(order_params["symbol"]), client_order_id)
+            except BinanceAPIError:
+                raise exc
+
     def _request(
         self,
         method: str,
@@ -179,6 +193,10 @@ class BinanceSpotClient:
             detail = exc.read().decode(errors="replace")
             raise BinanceAPIError(f"Binance HTTP {exc.code}: {detail}") from exc
         except URLError as exc:
+            if method != "GET":
+                raise BinanceAPIError(
+                    f"Ambiguous network error during {method}; request was not retried: {exc.reason}"
+                ) from exc
             return self._curl_request(method, url, body, headers, exc)
 
         if not raw:

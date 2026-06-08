@@ -18,6 +18,7 @@ from .risk import evaluate_buy_risk
 from .sizing import PositionSizing, position_sizing
 from .strategy import GridStrategy, MarketSnapshot, Signal, StrategyDecision
 from .swing import SwingStrategy, split_lots
+from .trade_lock import trading_lock
 from .trend_guard import TrendGuard, TrendState
 
 
@@ -72,9 +73,7 @@ class TradingAgent:
         risk = self._risk(snapshot)
         if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._buy_can_bypass_risk(decision, risk, trend_state, scalp_state):
             decision = StrategyDecision(Signal.HOLD, risk["reason"], decision.reference_price, decision.price)
-        decision = self._sell_gate(decision, open_lots)
-        order_result = self._maybe_execute(snapshot, decision)
-        lot_update = self._update_ledger(decision, order_result)
+        decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
         return {
@@ -325,31 +324,70 @@ class TradingAgent:
         reason = str(risk.get("reason", ""))
         return "floating loss" in reason
 
-    def _sell_gate(self, decision: StrategyDecision, open_lots: list[dict[str, Any]]) -> StrategyDecision:
-        """Final sell insurance: block any auto-sell where the execution price is below the lot's true cost basis + fees.
-
-        This is independent of grid, swing, and defensive-scalp strategies.  If a lot was recorded with a stale
-        buy_price (e.g. pre-v1.0.14 lots that used the ticker price instead of the actual fill price), the
-        upstream strategy may generate a SELL that is actually a loss.  This gate catches those cases.
-        """
+    def _sell_gate(self, decision: StrategyDecision) -> StrategyDecision:
         if decision.signal != Signal.SELL or not decision.lot_id:
             return decision
-        lot = next((l for l in open_lots if str(l.get("id")) == decision.lot_id), None)
+        lot = next((item for item in self.ledger.open_lots() if str(item.get("id")) == decision.lot_id), None)
         if not lot:
-            return decision
+            return self._blocked_sell(decision, "sell gate blocked: lot is no longer open")
+        if lot.get("auto_sell", True) is False:
+            return self._blocked_sell(decision, "sell gate blocked: auto sell is disabled for this lot")
+        if lot.get("pending_limit_sell_order_id"):
+            return self._blocked_sell(decision, "sell gate blocked: lot already has a pending limit sell")
+        remaining = float(lot.get("remaining_quantity", 0) or 0)
+        if remaining <= 0 or abs(remaining - decision.quantity) > 0.000000001:
+            return self._blocked_sell(decision, "sell gate blocked: lot quantity changed; retry with fresh ledger state")
+
         buy_price = float(lot.get("buy_price", 0) or 0)
-        if buy_price <= 0:
-            return decision
+        buy_quote = float(lot.get("buy_quote", 0) or 0)
+        original_quantity = float(lot.get("quantity", 0) or 0)
+        true_unit_cost = max(buy_price, buy_quote / original_quantity if buy_quote > 0 and original_quantity > 0 else 0)
+        if true_unit_cost <= 0:
+            return self._blocked_sell(decision, "sell gate blocked: lot cost basis is missing")
         fee_rate = self.config.trading_fee_rate
-        breakeven_price = buy_price * (1 + fee_rate * 2)
-        if decision.price < breakeven_price:
-            return StrategyDecision(
-                Signal.HOLD,
-                f"sell gate blocked: price {decision.price:.2f} below lot breakeven {breakeven_price:.2f} (buy_price={buy_price:.2f})",
-                decision.reference_price,
-                decision.price,
+        breakeven_price = true_unit_cost * (1 + fee_rate) / max(1 - fee_rate, 0.00000001)
+        required_price = max(breakeven_price, self._strategy_sell_floor(lot))
+        if decision.price < required_price:
+            return self._blocked_sell(
+                decision,
+                f"sell gate blocked: price {decision.price:.2f} below required {required_price:.2f}",
             )
         return decision
+
+    def _strategy_sell_floor(self, lot: dict[str, Any]) -> float:
+        level = str(lot.get("level", ""))
+        buy_price = float(lot.get("buy_price", 0) or 0)
+        fee_markup = self.config.trading_fee_rate * 2
+        if level.startswith("scalp-"):
+            return max(
+                float(lot.get("target_price", 0) or 0),
+                buy_price * (1 + self.config.defensive_scalp_take_profit_pct + fee_markup),
+            )
+        if level.startswith("swing-"):
+            return max(
+                float(lot.get("target_price", 0) or 0),
+                buy_price * (1 + self.config.swing_min_band_pct + fee_markup),
+            )
+        enriched = self._lots_for_strategy([lot])[0]
+        effective_profit = float(enriched.get("target_profit_pct_effective", self.config.take_profit_pct) or 0)
+        return buy_price * (1 + effective_profit + fee_markup)
+
+    @staticmethod
+    def _blocked_sell(decision: StrategyDecision, reason: str) -> StrategyDecision:
+        return StrategyDecision(Signal.HOLD, reason, decision.reference_price, decision.price)
+
+    def _execute_with_final_guard(
+        self,
+        snapshot: MarketSnapshot,
+        decision: StrategyDecision,
+    ) -> tuple[StrategyDecision, dict[str, Any] | None, dict[str, Any] | None]:
+        if decision.signal == Signal.HOLD:
+            return decision, None, None
+        with trading_lock():
+            guarded = self._sell_gate(decision) if decision.signal == Signal.SELL else decision
+            order_result = self._maybe_execute(snapshot, guarded)
+            lot_update = self._update_ledger(guarded, order_result)
+            return guarded, order_result, lot_update
 
     def _maybe_execute(self, snapshot: MarketSnapshot, decision: StrategyDecision) -> dict[str, Any] | None:
         if decision.signal == Signal.HOLD:

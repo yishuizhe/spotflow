@@ -25,6 +25,7 @@ from .sizing import position_sizing
 from .storage import SQLiteJsonListStore
 from .strategy import GridStrategy, MarketSnapshot
 from .swing import SwingStrategy, is_swing_lot, split_lots
+from .trade_lock import trading_lock
 from .trend_guard import TrendGuard
 
 
@@ -1630,11 +1631,16 @@ HTML = """<!doctype html>
       if (!latestOpenLots.length) return uiAlert('当前没有未平批次。');
       const password = await uiPrompt(enabled ? '输入交易开关密码以一键开启所有未平批次自动卖' : '输入交易开关密码以一键关闭所有未平批次自动卖', '', 'password');
       if (!password) return;
-      const confirmed = await uiConfirm(`${enabled ? '开启' : '关闭'} ${latestOpenLots.length} 个未平批次的自动卖？`);
+      const confirmed = await uiConfirm(enabled
+        ? `开启 ${latestOpenLots.length} 个未平批次的自动卖？`
+        : `关闭 ${latestOpenLots.length} 个未平批次的脚本自动卖？这不会取消已经提交到币安的限价卖单；如需完全停止卖出，还要在“限价挂单”中取消现有卖单。`);
       if (!confirmed) return;
-      for (const lot of latestOpenLots) {
-        const result = await apiGet('/api/manual/auto-sell', { lot_id: lot.id, auto_sell: enabled }, password);
+      try {
+        const result = await apiGet('/api/manual/auto-sell-all', { auto_sell: enabled }, password);
         if (result.error) return uiAlert(result.error, '设置失败');
+        showNotice(`${enabled ? '已开启' : '已关闭'}全部未平批次自动卖：更新 ${result.updated || 0} 个，原状态 ${result.unchanged || 0} 个。`);
+      } catch (err) {
+        await uiAlert(err.message || String(err), '设置失败');
       }
       refresh();
     }
@@ -2073,7 +2079,7 @@ HTML = """<!doctype html>
         calibrate: '把当前资产设为新的盈亏基准，适合充值后校准。',
         runBacktest: '用当前资金和策略参数跑模拟或历史 K 线回测。',
         bulkAutoOn: '一次开启所有未平批次的自动止盈卖出。',
-        bulkAutoOff: '一次暂停所有未平批次的自动卖出，持仓不会被卖掉。',
+        bulkAutoOff: '一次暂停脚本为所有未平批次提交新的自动卖单；已经在币安挂出的限价卖单需要单独取消。',
         bulkMarketSell: '按市价卖出全部未平批次，属于不可撤回的真实交易。',
         bulkLimitSell: '按每个批次当前预计卖价分别提交限价单。',
         settingsReload: '放弃页面内尚未保存的修改，重新读取服务器配置。',
@@ -2272,7 +2278,8 @@ class Dashboard:
         return {"ok": True, "deleted": deleted}
 
     def status(self, range_key: str = "minute") -> dict[str, Any]:
-        pending_orders = self.sync_pending_orders()
+        with trading_lock():
+            pending_orders = self.sync_pending_orders()
         price = self.client.ticker_price(self.config.symbol)
         interval, limit = self.chart_window(range_key)
         klines = self.client.klines(self.config.symbol, interval=interval, limit=limit)
@@ -2853,14 +2860,18 @@ class Dashboard:
         return message
 
     def set_manual_lot_auto_sell(self, lot_id: str, enabled: bool) -> dict[str, Any]:
-        lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
-        if not lot:
-            return {"error": "open lot not found"}
-        updated = self.ledger.set_auto_sell(lot_id, enabled)
+        with trading_lock():
+            updated = self.ledger.set_auto_sell(lot_id, enabled)
         if not updated:
-            return {"error": "failed to update auto sell"}
+            return {"error": "open lot not found"}
         self._record_manual_trade("AUTO_SELL_ENABLED" if enabled else "AUTO_SELL_DISABLED", 0, {}, updated)
         return {"lot": updated}
+
+    def set_all_lots_auto_sell(self, enabled: bool) -> dict[str, int]:
+        with trading_lock():
+            result = self.ledger.set_all_auto_sell(enabled)
+        self._record_manual_trade("AUTO_SELL_ALL_ENABLED" if enabled else "AUTO_SELL_ALL_DISABLED", 0, {}, result)
+        return result
 
     def manual_limit_sell(self, lot_id: str, limit_price: float) -> dict[str, Any]:
         if limit_price <= 0:
@@ -2965,19 +2976,59 @@ class Dashboard:
         return {"order": order, "pending": pending}
 
     def cancel_pending_order(self, order_id: int) -> dict[str, Any]:
+        pending_item = next(
+            (dict(item) for item in self.pending_orders() if int(item.get("order_id", 0) or 0) == order_id),
+            None,
+        )
         order = self.client.cancel_order(self.config.symbol, order_id)
+        processed_fill = self._process_pending_fill(pending_item, order) if pending_item else False
+
         def mutate(pending: list[dict[str, Any]]) -> None:
             for item in pending:
                 if int(item.get("order_id", 0) or 0) != order_id:
                     continue
                 item["status"] = order.get("status", "CANCELED")
                 item["closed_at"] = _utc_now()
-                if item.get("lot_id"):
+                item["processed"] = processed_fill or float(order.get("executedQty", 0) or 0) <= 0
+                if item.get("lot_id") and not processed_fill:
                     self.clear_lot_pending_sell(str(item["lot_id"]))
 
         self.update_pending_orders(mutate)
         self._record_manual_trade("LIMIT_ORDER_CANCELED", 0, order, None)
         return {"order": order}
+
+    def _process_pending_fill(self, item: dict[str, Any] | None, order: dict[str, Any]) -> bool:
+        if not item:
+            return False
+        executed_qty = float(order.get("executedQty", 0) or 0)
+        quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
+        if executed_qty <= 0 or quote_qty <= 0:
+            return False
+        filled_order = dict(order)
+        filled_order["cummulativeQuoteQty"] = str(quote_qty)
+        if item.get("side") == "BUY":
+            lot = self.ledger.add_buy(
+                self.config.symbol,
+                filled_order,
+                float(item.get("target_profit_pct", 0) or 0),
+                self.config.trading_fee_rate,
+                str(item.get("level", "manual-limit-buy")),
+                None,
+                bool(item.get("auto_sell", False)),
+                self.config.base_asset,
+            )
+            self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, filled_order, lot)
+        elif item.get("side") == "SELL" and item.get("lot_id"):
+            lot = self.ledger.close_lot(str(item["lot_id"]), filled_order, self.config.trading_fee_rate)
+            self.mark_lot_limit_sell_filled(
+                str(item["lot_id"]),
+                int(item.get("order_id", 0) or 0),
+                float(item.get("limit_price", 0) or 0),
+            )
+            self._record_manual_trade("LIMIT_SELL_FILLED", quote_qty, filled_order, lot)
+        else:
+            self._record_manual_trade("EXTERNAL_LIMIT_SELL_FILLED", quote_qty, filled_order, item)
+        return True
 
     def add_pending_order(self, order: dict[str, Any]) -> dict[str, Any]:
         def mutate(pending: list[dict[str, Any]]) -> dict[str, Any]:
@@ -3078,38 +3129,14 @@ class Dashboard:
                     continue
                 item["status"] = order.get("status", status)
                 item["updated_at"] = _utc_now()
-                executed_qty = float(order.get("executedQty", 0) or 0)
-                quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
-                if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and executed_qty > 0 and quote_qty > 0:
-                    order = dict(order)
-                    order["cummulativeQuoteQty"] = str(quote_qty)
-                    if item.get("side") == "BUY":
-                        lot = self.ledger.add_buy(
-                            self.config.symbol,
-                            order,
-                            float(item.get("target_profit_pct", 0) or 0),
-                            self.config.trading_fee_rate,
-                            str(item.get("level", "manual-limit-buy")),
-                            None,
-                            bool(item.get("auto_sell", False)),
-                            self.config.base_asset,
-                        )
-                        self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, order, lot)
-                    elif item.get("side") == "SELL":
-                        if item.get("lot_id"):
-                            lot = self.ledger.close_lot(str(item["lot_id"]), order, self.config.trading_fee_rate)
-                            self.mark_lot_limit_sell_filled(
-                                str(item["lot_id"]),
-                                int(item.get("order_id", 0) or 0),
-                                float(item.get("limit_price", 0) or 0),
-                            )
-                            self._record_manual_trade("LIMIT_SELL_FILLED", quote_qty, order, lot)
-                        else:
-                            self._record_manual_trade("EXTERNAL_LIMIT_SELL_FILLED", quote_qty, order, item)
+                if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and self._process_pending_fill(item, order):
                     item["processed"] = True
                     item["closed_at"] = _utc_now()
                 if item["status"] in {"CANCELED", "EXPIRED", "REJECTED"} and item.get("lot_id") and not item.get("processed"):
                     self.clear_lot_pending_sell(str(item["lot_id"]))
+                    item["closed_at"] = _utc_now()
+                if item["status"] in {"CANCELED", "EXPIRED", "REJECTED"} and not item.get("processed"):
+                    item["processed"] = True
                     item["closed_at"] = _utc_now()
 
         return self.update_pending_orders(lambda pending: (mutate(pending), pending)[1])
@@ -3421,6 +3448,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/manual/buy",
                 "/api/manual/sell",
                 "/api/manual/auto-sell",
+                "/api/manual/auto-sell-all",
                 "/api/manual/limit-buy",
                 "/api/manual/limit-sell",
                 "/api/manual/external-limit-sell",
@@ -3474,26 +3502,29 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 result = dashboard.update_take_profit(payload)
             elif path == "/api/manual/buy":
                 try:
-                    result = dashboard.manual_buy(
-                        float(payload.get("quote_size", 0) or 0),
-                        float(payload.get("target_profit_pct", 0) or 0),
-                        _payload_bool(payload.get("auto_sell")),
-                    )
+                    with trading_lock():
+                        result = dashboard.manual_buy(
+                            float(payload.get("quote_size", 0) or 0),
+                            float(payload.get("target_profit_pct", 0) or 0),
+                            _payload_bool(payload.get("auto_sell")),
+                        )
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/limit-buy":
                 try:
-                    result = dashboard.manual_limit_buy(
-                        float(payload.get("quote_size", 0) or 0),
-                        float(payload.get("limit_price", 0) or 0),
-                        float(payload.get("target_profit_pct", 0) or 0),
-                        _payload_bool(payload.get("auto_sell")),
-                    )
+                    with trading_lock():
+                        result = dashboard.manual_limit_buy(
+                            float(payload.get("quote_size", 0) or 0),
+                            float(payload.get("limit_price", 0) or 0),
+                            float(payload.get("target_profit_pct", 0) or 0),
+                            _payload_bool(payload.get("auto_sell")),
+                        )
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/sell":
                 try:
-                    result = dashboard.manual_sell(str(payload.get("lot_id", "")))
+                    with trading_lock():
+                        result = dashboard.manual_sell(str(payload.get("lot_id", "")))
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/auto-sell":
@@ -3501,25 +3532,32 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                     str(payload.get("lot_id", "")),
                     bool(_payload_bool(payload.get("auto_sell"))),
                 )
+            elif path == "/api/manual/auto-sell-all":
+                result = dashboard.set_all_lots_auto_sell(
+                    bool(_payload_bool(payload.get("auto_sell"))),
+                )
             elif path == "/api/manual/limit-sell":
                 try:
-                    result = dashboard.manual_limit_sell(
-                        str(payload.get("lot_id", "")),
-                        float(payload.get("limit_price", 0) or 0),
-                    )
+                    with trading_lock():
+                        result = dashboard.manual_limit_sell(
+                            str(payload.get("lot_id", "")),
+                            float(payload.get("limit_price", 0) or 0),
+                        )
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/external-limit-sell":
                 try:
-                    result = dashboard.manual_external_limit_sell(
-                        float(payload.get("quantity", 0) or 0),
-                        float(payload.get("limit_price", 0) or 0),
-                    )
+                    with trading_lock():
+                        result = dashboard.manual_external_limit_sell(
+                            float(payload.get("quantity", 0) or 0),
+                            float(payload.get("limit_price", 0) or 0),
+                        )
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/cancel-order":
                 try:
-                    result = dashboard.cancel_pending_order(int(payload.get("order_id", 0) or 0))
+                    with trading_lock():
+                        result = dashboard.cancel_pending_order(int(payload.get("order_id", 0) or 0))
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/external-close":

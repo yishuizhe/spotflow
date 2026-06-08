@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.19 - 2026-06-08
+
+- Added a cross-process trading lock shared by the agent and dashboard so auto-sell changes, manual orders, pending-order synchronization, exchange submission, and ledger updates cannot race each other.
+- Replaced the browser-side per-lot bulk auto-sell loop with one atomic server-side update.
+- Added a final execution-time ledger reload that blocks stale sells when auto-sell was disabled, a limit sell is pending, the lot quantity changed, cost data is missing, or the current strategy profit floor is not met.
+- Added unique Binance client order IDs and recovery-by-ID after ambiguous network failures; non-idempotent order requests are no longer blindly retried.
+- Process partial fills before releasing canceled orders and mark terminal zero-fill orders complete instead of querying them forever.
+- Fixed partial-close accounting to accumulate proceeds and sell fees while proportionally allocating the original buy fee.
+- Clarified that disabling script auto-sell does not cancel limit orders already resting at Binance.
+
 ## v1.0.18 - 2026-06-08
 
 - Fixed a JavaScript syntax error caused by `\n` inside a Python triple-quoted string being rendered as a literal newline inside a JS single-quoted string, which silently broke all JavaScript execution on the dashboard page.

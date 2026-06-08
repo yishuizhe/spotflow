@@ -116,6 +116,49 @@ class PositionLedgerFeeTest(unittest.TestCase):
             self.assertAlmostEqual(lot["sell_fee_quote"], 0.71)
             self.assertAlmostEqual(lot["net_realized_pnl"], 8.59)
 
+    def test_partial_closes_accumulate_pnl_and_allocate_buy_fee(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = PositionLedger(Path(tmp) / "lots.json")
+            ledger.save(
+                [
+                    {
+                        "id": "lot-1",
+                        "symbol": "BTCUSDT",
+                        "status": "open",
+                        "quantity": 1.0,
+                        "remaining_quantity": 1.0,
+                        "buy_price": 100,
+                        "buy_quote": 100,
+                        "buy_fee_quote": 1,
+                        "target_price": 110,
+                        "opened_at": "2026-01-01T00:00:00Z",
+                    }
+                ]
+            )
+
+            first = ledger.close_lot(
+                "lot-1",
+                {"executedQty": "0.4", "cummulativeQuoteQty": "44"},
+                0.01,
+            )
+            second = ledger.close_lot(
+                "lot-1",
+                {"executedQty": "0.6", "cummulativeQuoteQty": "72"},
+                0.01,
+            )
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            assert first is not None and second is not None
+            self.assertAlmostEqual(first["remaining_quantity"], 0.6)
+            self.assertAlmostEqual(first["total_fee_quote"], 0.84)
+            self.assertAlmostEqual(first["net_realized_pnl"], 3.16)
+            self.assertEqual(second["status"], "closed")
+            self.assertAlmostEqual(second["sell_quote"], 116)
+            self.assertAlmostEqual(second["sell_fee_quote"], 1.16)
+            self.assertAlmostEqual(second["total_fee_quote"], 2.16)
+            self.assertAlmostEqual(second["net_realized_pnl"], 13.84)
+
     def test_set_auto_sell_updates_open_lot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ledger = PositionLedger(Path(tmp) / "lots.json")
@@ -142,6 +185,25 @@ class PositionLedgerFeeTest(unittest.TestCase):
             self.assertIsNotNone(enabled)
             self.assertIsNotNone(disabled)
             self.assertFalse(ledger.lots()[0]["auto_sell"])
+
+    def test_set_all_auto_sell_updates_all_open_lots_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = PositionLedger(Path(tmp) / "lots.json")
+            ledger.save(
+                [
+                    {"id": "open-1", "status": "open", "remaining_quantity": 0.01, "auto_sell": True},
+                    {"id": "open-2", "status": "open", "remaining_quantity": 0.02},
+                    {"id": "closed", "status": "closed", "remaining_quantity": 0, "auto_sell": True},
+                ]
+            )
+
+            result = ledger.set_all_auto_sell(False)
+            lots = {lot["id"]: lot for lot in ledger.lots()}
+
+            self.assertEqual(result, {"updated": 2, "unchanged": 0})
+            self.assertFalse(lots["open-1"]["auto_sell"])
+            self.assertFalse(lots["open-2"]["auto_sell"])
+            self.assertTrue(lots["closed"]["auto_sell"])
 
     def test_retarget_open_lots_skips_swing_and_pending_limit_sell(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

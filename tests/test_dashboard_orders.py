@@ -45,6 +45,17 @@ class FakeLockedBalanceClient(FakeExternalSellClient):
     def account(self):
         return {"balances": [{"asset": "BTC", "free": "0.00009", "locked": "0.00091"}]}
 
+class FakeCanceledOrderClient:
+    def order(self, symbol, order_id):
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "side": "BUY",
+            "status": "CANCELED",
+            "executedQty": "0",
+            "cummulativeQuoteQty": "0",
+        }
+
 
 class DashboardOrderTest(unittest.TestCase):
     def test_order_quote_qty_falls_back_to_price_times_executed_qty(self) -> None:
@@ -172,6 +183,39 @@ class DashboardOrderTest(unittest.TestCase):
                 self.assertAlmostEqual(result["pending"]["requested_quantity"], 0.001)
                 self.assertAlmostEqual(result["pending"]["quantity"], 0.00009)
                 self.assertTrue(result["pending"]["partial_quantity"])
+            finally:
+                os.chdir(old_cwd)
+
+    def test_terminal_zero_fill_pending_order_is_marked_processed(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+                dashboard.client = FakeCanceledOrderClient()
+                dashboard.save_pending_orders(
+                    [
+                        {
+                            "order_id": 7,
+                            "side": "BUY",
+                            "status": "NEW",
+                            "quantity": 0.001,
+                            "limit_price": 60000,
+                            "processed": False,
+                        }
+                    ]
+                )
+
+                orders = dashboard.sync_pending_orders()
+
+                self.assertEqual(orders[0]["status"], "CANCELED")
+                self.assertTrue(orders[0]["processed"])
+                self.assertIn("closed_at", orders[0])
             finally:
                 os.chdir(old_cwd)
 
