@@ -564,7 +564,10 @@ HTML = """<!doctype html>
       <div class="pager"><button id="openPrev">上一页</button><span id="openPage">1 / 1</span><button id="openNext">下一页</button></div>
     </section>
     <section class="panel" style="margin-top:14px">
-      <div class="label">限价挂单</div>
+      <div class="panel-head">
+        <div class="label">限价挂单</div>
+        <button class="secondary-button" id="bulkCancelOrders">一键取消全部挂单</button>
+      </div>
       <div class="table-scroll">
         <table>
           <thead><tr><th>时间</th><th>方向</th><th>关联批次</th><th>成本价</th><th>限价</th><th>数量</th><th>预计净收益</th><th>状态</th><th>操作</th></tr></thead>
@@ -1578,6 +1581,7 @@ HTML = """<!doctype html>
     document.getElementById('bulkAutoOff').addEventListener('click', () => bulkAutoSell(false));
     document.getElementById('bulkMarketSell').addEventListener('click', () => bulkMarketSell());
     document.getElementById('bulkLimitSell').addEventListener('click', () => bulkLimitSell());
+    document.getElementById('bulkCancelOrders').addEventListener('click', () => bulkCancelPendingOrders());
     document.getElementById('runBacktest').addEventListener('click', async () => {
       document.getElementById('backtestStatus').textContent = '回测运行中...';
       try {
@@ -1700,11 +1704,29 @@ HTML = """<!doctype html>
       if (!password) return;
       const confirmed = await uiConfirm(`确认按市价卖出 ${latestOpenLots.length} 个未平批次？这是实盘下单，无法撤回。`);
       if (!confirmed) return;
+      let success = 0;
+      let skipped = 0;
+      const failures = [];
       for (const lot of latestOpenLots) {
-        const result = await apiGet('/api/manual/sell', { lot_id: lot.id }, password);
-        if (result.error) return uiAlert(result.error, '卖出失败');
+        if (lot.pending_limit_sell_order_id) {
+          skipped += 1;
+          continue;
+        }
+        try {
+          const result = await apiGet('/api/manual/sell', { lot_id: lot.id }, password);
+          if (result.error) failures.push(`${lot.level || lot.id}：${result.error}`);
+          else success += 1;
+        } catch (err) {
+          failures.push(`${lot.level || lot.id}：${err.message || String(err)}`);
+        }
       }
-      refresh();
+      await refresh();
+      const summary = `一键市价卖完成：成功 ${success} 个，跳过 ${skipped} 个已有挂单批次，失败 ${failures.length} 个。`;
+      if (failures.length) {
+        await uiAlert(`${summary}\\n\\n${failures.slice(0, 3).join('\\n')}`, '卖出结果');
+      } else {
+        showNotice(summary);
+      }
     }
     async function bulkLimitSell() {
       if (!latestOpenLots.length) return uiAlert('当前没有未平批次。');
@@ -1743,6 +1765,28 @@ HTML = """<!doctype html>
       try { await apiGet('/api/manual/cancel-order', { order_id: orderId }, password); }
       catch (err) { await uiAlert(err.message || String(err), '取消失败'); return; }
       refresh();
+    }
+    async function bulkCancelPendingOrders() {
+      const active = (latestPendingOrders || []).filter(order =>
+        !order.processed && !['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED'].includes(order.status)
+      );
+      if (!active.length) return uiAlert('当前没有可以取消的限价挂单。');
+      const password = await uiPrompt('输入交易开关密码以取消全部限价挂单', '', 'password');
+      if (!password) return;
+      const confirmed = await uiConfirm(`确认取消当前 ${active.length} 个限价挂单？已成交部分不会被撤回。`);
+      if (!confirmed) return;
+      try {
+        const result = await apiGet('/api/manual/cancel-all-orders', {}, password);
+        const summary = `批量撤单完成：成功 ${result.canceled || 0} 个，已终结 ${result.terminal || 0} 个，失败 ${(result.failures || []).length} 个。`;
+        await refresh();
+        if ((result.failures || []).length) {
+          await uiAlert(`${summary}\\n\\n${result.failures.slice(0, 3).join('\\n')}`, '撤单结果');
+        } else {
+          showNotice(summary);
+        }
+      } catch (err) {
+        await uiAlert(err.message || String(err), '批量撤单失败');
+      }
     }
     async function externalClose(lotId) {
       const sellPrice = await uiPrompt('输入你在币安外部卖出的成交价。这个操作只同步账本，不会再次下单。', '', 'number');
@@ -2536,22 +2580,31 @@ class Dashboard:
         buy_price = float(lot.get("buy_price") or 0)
         target = float(lot.get("effective_target_price") or lot.get("target_price") or 0)
         quantity = float(lot.get("remaining_quantity") or 0)
-        buy_quote = float(lot.get("buy_quote") or buy_price * quantity)
-        buy_fee = float(lot.get("buy_fee_quote") or 0)
         if quantity <= 0:
             return "批次数量为零，等待账本对账", True
+        original_quantity = float(lot.get("quantity") or quantity)
+        remaining_ratio = min(1.0, quantity / original_quantity) if original_quantity > 0 else 1.0
+        original_buy_quote = float(lot.get("buy_quote") or buy_price * original_quantity)
+        remaining_buy_quote = original_buy_quote * remaining_ratio
+        remaining_buy_fee = float(lot.get("buy_fee_quote") or 0) * remaining_ratio
+        sold_quantity = max(0.0, original_quantity - quantity)
+        partial_note = (
+            f"该批次已部分卖出，账本剩余 {quantity:.8f} {self.config.base_asset}；"
+            if sold_quantity > max(1e-12, original_quantity * 1e-8)
+            else ""
+        )
         fee_rate = self.config.trading_fee_rate
-        break_even = (buy_quote + buy_fee) / max(quantity * (1 - fee_rate), 0.00000001)
+        break_even = (remaining_buy_quote + remaining_buy_fee) / max(quantity * (1 - fee_rate), 0.00000001)
         protected_break_even = break_even * (1 + max(0.0005, fee_rate * 0.5))
         if current_price < buy_price:
             gap = (buy_price / current_price - 1) if current_price > 0 else 0
-            return f"当前仍亏损，距离成本价还差 {buy_price - current_price:.2f}（{gap:.2%}）", False
+            return f"{partial_note}当前仍亏损，距离成本价还差 {buy_price - current_price:.2f}（{gap:.2%}）", False
         if current_price < protected_break_even:
             gap = (protected_break_even / current_price - 1) if current_price > 0 else 0
-            return f"尚未覆盖买卖手续费与滑点，安全线 {protected_break_even:.2f}，还差 {gap:.2%}", False
+            return f"{partial_note}尚未覆盖买卖手续费与滑点，安全线 {protected_break_even:.2f}，还差 {gap:.2%}", False
         if current_price < target:
             gap = (target / current_price - 1) if current_price > 0 else 0
-            return f"已覆盖成本，但未达到目标利润；目标 {target:.2f}，还差 {gap:.2%}", False
+            return f"{partial_note}已覆盖成本，但未达到目标利润；目标 {target:.2f}，还差 {gap:.2%}", False
         if lot.get("trailing_armed"):
             peak = float(lot.get("trailing_peak_price") or current_price)
             trigger = peak * (1 - self.config.trailing_profit_pct)
@@ -2946,6 +2999,8 @@ class Dashboard:
         lot = next((item for item in self.ledger.open_lots() if item.get("id") == lot_id), None)
         if not lot:
             return {"error": "open lot not found"}
+        if lot.get("pending_limit_sell_order_id"):
+            return {"error": "该批次已有未成交限价卖单。请先取消对应挂单，再进行市价卖出。"}
         quantity = Decimal(str(lot.get("remaining_quantity", 0) or 0))
         if quantity <= 0:
             return {"error": "lot has no remaining quantity"}
@@ -2953,12 +3008,16 @@ class Dashboard:
         account = self.client.account()
         balances = {item["asset"]: item for item in account.get("balances", [])}
         base_free, base_locked, _base_total = _balance_parts(balances, self.config.base_asset)
-        rounded_qty = self.client.round_quantity(min(quantity, Decimal(str(base_free))), filters)
+        rounded_qty = self.client.round_quantity(quantity, filters)
         if rounded_qty < filters.min_qty:
+            return {"error": f"该批次剩余数量低于币安最小下单数量 {filters.min_qty}，请使用外部已卖同步或与其他余额合并处理。"}
+        rounded_free = self.client.round_quantity(Decimal(str(base_free)), filters)
+        if rounded_free < rounded_qty:
             return {
                 "error": (
-                    f"当前可用 {self.config.base_asset} 只有 {base_free:.8f}，"
-                    f"另有 {base_locked:.8f} 被限价卖单锁定。请先取消已有卖单或等待成交。"
+                    f"该批次需要可用 {self.config.base_asset} {rounded_qty}，"
+                    f"当前只有 {base_free:.8f}，另有 {base_locked:.8f} 被限价卖单锁定。"
+                    "请先取消已有卖单或等待成交；系统不会再只卖出批次的一小部分。"
                 )
             }
         price = self.client.ticker_price(self.config.symbol)
@@ -3017,15 +3076,18 @@ class Dashboard:
         account = self.client.account()
         balances = {item["asset"]: item for item in account.get("balances", [])}
         base_free, base_locked, _base_total = _balance_parts(balances, self.config.base_asset)
-        available_qty = min(quantity, Decimal(str(base_free)))
-        rounded_qty = self.client.round_quantity(available_qty, filters)
+        rounded_qty = self.client.round_quantity(quantity, filters)
         if rounded_qty < filters.min_qty:
+            self.clear_lot_pending_sell(lot_id)
+            return {"error": f"该批次剩余数量低于币安最小下单数量 {filters.min_qty}。"}
+        rounded_free = self.client.round_quantity(Decimal(str(base_free)), filters)
+        if rounded_free < rounded_qty:
             self.clear_lot_pending_sell(lot_id)
             return {
                 "error": (
-                    f"当前可用 {self.config.base_asset} 只有 {base_free:.8f}，"
-                    f"另有 {base_locked:.8f} 被其他限价单锁定，无法为该批次继续挂单。"
-                    "请先取消已有挂单或等待成交。"
+                    f"该批次需要可用 {self.config.base_asset} {rounded_qty}，"
+                    f"当前只有 {base_free:.8f}，另有 {base_locked:.8f} 被其他限价单锁定。"
+                    "请先取消已有挂单或等待成交；系统不会创建不完整的批次卖单。"
                 )
             }
         if rounded_qty * price < filters.min_notional:
@@ -3060,7 +3122,7 @@ class Dashboard:
                 "limit_price": float(price),
                 "quantity": float(rounded_qty),
                 "requested_quantity": float(quantity),
-                "partial_quantity": rounded_qty < quantity,
+                "partial_quantity": False,
                 "quote_size": float(rounded_qty * price),
                 "status": order.get("status", "NEW"),
                 "created_at": _utc_now(),
@@ -3109,7 +3171,11 @@ class Dashboard:
             (dict(item) for item in self.pending_orders() if int(item.get("order_id", 0) or 0) == order_id),
             None,
         )
-        order = self.client.cancel_order(self.config.symbol, order_id)
+        current = self.client.order(self.config.symbol, order_id)
+        if str(current.get("status", "")) in {"FILLED", "CANCELED", "EXPIRED", "REJECTED"}:
+            order = current
+        else:
+            order = self.client.cancel_order(self.config.symbol, order_id)
         processed_fill = self._process_pending_fill(pending_item, order) if pending_item else False
 
         def mutate(pending: list[dict[str, Any]]) -> None:
@@ -3124,7 +3190,38 @@ class Dashboard:
 
         self.update_pending_orders(mutate)
         self._record_manual_trade("LIMIT_ORDER_CANCELED", 0, order, None)
-        return {"order": order}
+        return {"order": order, "terminal": str(order.get("status", "")) != "CANCELED"}
+
+    def cancel_all_pending_orders(self) -> dict[str, Any]:
+        active = [
+            dict(item)
+            for item in self.pending_orders()
+            if not item.get("processed")
+            and str(item.get("status", "NEW")) not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED"}
+        ]
+        canceled = 0
+        terminal = 0
+        failures: list[str] = []
+        for item in active:
+            order_id = int(item.get("order_id", 0) or 0)
+            if order_id <= 0:
+                failures.append("缺少有效订单号")
+                continue
+            try:
+                result = self.cancel_pending_order(order_id)
+                status = str(result.get("order", {}).get("status", ""))
+                if status == "CANCELED":
+                    canceled += 1
+                else:
+                    terminal += 1
+            except (BinanceAPIError, ValueError) as exc:
+                failures.append(f"订单 {order_id}：{exc}")
+        return {
+            "requested": len(active),
+            "canceled": canceled,
+            "terminal": terminal,
+            "failures": failures,
+        }
 
     def _process_pending_fill(self, item: dict[str, Any] | None, order: dict[str, Any]) -> bool:
         if not item or item.get("processed"):
@@ -3616,6 +3713,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/manual/limit-sell",
                 "/api/manual/external-limit-sell",
                 "/api/manual/cancel-order",
+                "/api/manual/cancel-all-orders",
                 "/api/manual/external-close",
                 "/api/comments/add",
                 "/api/comments/admin",
@@ -3721,6 +3819,12 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 try:
                     with trading_lock():
                         result = dashboard.cancel_pending_order(int(payload.get("order_id", 0) or 0))
+                except (BinanceAPIError, ValueError) as exc:
+                    result = {"error": str(exc)}
+            elif path == "/api/manual/cancel-all-orders":
+                try:
+                    with trading_lock():
+                        result = dashboard.cancel_all_pending_orders()
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/external-close":

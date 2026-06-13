@@ -57,6 +57,32 @@ class FakeCanceledOrderClient:
         }
 
 
+class FakeCancelableOrdersClient:
+    def __init__(self):
+        self.canceled = []
+
+    def order(self, symbol, order_id):
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "side": "SELL",
+            "status": "NEW",
+            "executedQty": "0",
+            "cummulativeQuoteQty": "0",
+        }
+
+    def cancel_order(self, symbol, order_id):
+        self.canceled.append(order_id)
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "side": "SELL",
+            "status": "CANCELED",
+            "executedQty": "0",
+            "cummulativeQuoteQty": "0",
+        }
+
+
 class FakeFilledSellOrderClient:
     def order(self, symbol, order_id):
         return {
@@ -105,6 +131,39 @@ class DashboardOrderTest(unittest.TestCase):
                 self.assertFalse(disabled_ready)
             finally:
                 os.chdir(old_cwd)
+
+    def test_partial_lot_safety_line_uses_only_remaining_cost(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret", trading_fee_rate=0.001),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                reason, ready = dashboard._lot_exit_reason(
+                    {
+                        "buy_price": 62500,
+                        "buy_quote": 62.5,
+                        "buy_fee_quote": 0.0625,
+                        "quantity": 0.001,
+                        "remaining_quantity": 0.00005,
+                        "target_price": 64000,
+                        "auto_sell": True,
+                    },
+                    62600,
+                )
+
+                self.assertIn("已部分卖出", reason)
+                self.assertIn("安全线", reason)
+                self.assertNotIn("1311151", reason)
+                self.assertFalse(ready)
+            finally:
+                os.chdir(old_cwd)
+
     def test_order_quote_qty_falls_back_to_price_times_executed_qty(self) -> None:
         order = {
             "status": "FILLED",
@@ -213,7 +272,7 @@ class DashboardOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
-    def test_limit_sell_uses_only_free_balance_and_records_partial_quantity(self) -> None:
+    def test_limit_sell_rejects_partial_free_balance_instead_of_splitting_lot(self) -> None:
         with TemporaryDirectory() as tmp:
             old_cwd = Path.cwd()
             try:
@@ -241,10 +300,43 @@ class DashboardOrderTest(unittest.TestCase):
 
                 result = dashboard.manual_limit_sell("lot-1", 65000)
 
-                self.assertNotIn("error", result)
-                self.assertAlmostEqual(result["pending"]["requested_quantity"], 0.001)
-                self.assertAlmostEqual(result["pending"]["quantity"], 0.00009)
-                self.assertTrue(result["pending"]["partial_quantity"])
+                self.assertIn("error", result)
+                self.assertIn("不会创建不完整的批次卖单", result["error"])
+                self.assertEqual(dashboard.pending_orders(), [])
+                lot = dashboard.ledger.open_lots()[0]
+                self.assertNotIn("pending_limit_sell_order_id", lot)
+            finally:
+                os.chdir(old_cwd)
+
+    def test_cancel_all_pending_orders_cancels_each_active_order(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+                client = FakeCancelableOrdersClient()
+                dashboard.client = client
+                dashboard.save_pending_orders(
+                    [
+                        {"order_id": 11, "side": "SELL", "status": "NEW", "processed": False},
+                        {"order_id": 12, "side": "SELL", "status": "NEW", "processed": False},
+                        {"order_id": 13, "side": "SELL", "status": "FILLED", "processed": True},
+                    ]
+                )
+
+                result = dashboard.cancel_all_pending_orders()
+
+                self.assertEqual(result["requested"], 2)
+                self.assertEqual(result["canceled"], 2)
+                self.assertEqual(result["failures"], [])
+                self.assertEqual(client.canceled, [11, 12])
+                rows = dashboard.pending_orders()
+                self.assertTrue(all(row.get("processed") for row in rows))
             finally:
                 os.chdir(old_cwd)
 

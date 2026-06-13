@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0.1 - 2026-06-14
+
+- Added one-click cancellation for all active local limit orders with per-order result summaries.
+- Made bulk market selling continue after individual lot failures and skip lots already reserved by limit orders.
+- Prevented market and limit sell actions from silently selling only a small free-balance fragment of a ledger lot.
+- Fixed break-even and safety-line calculations for partially closed lots by allocating original cost and buy fees proportionally to the remaining quantity.
+- Added explicit remaining-quantity context to exit reasons for legacy partially closed lots.
+
 ## v2.0.0 - 2026-06-13
 
 - Added explicit lot lifecycle states and per-lot exit explanations.
