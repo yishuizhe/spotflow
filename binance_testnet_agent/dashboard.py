@@ -14,6 +14,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from typing import Any
 
+from .adaptive import capital_plan, identify_market_regime
+from .audit import DecisionAudit
 from .binance_client import BinanceAPIError, BinanceSpotClient
 from .config import AgentConfig
 from .defensive import enrich_lot_with_defensive_target, enrich_lots_with_defensive_targets, evaluate_defensive_mode
@@ -100,6 +102,14 @@ CONFIG_SETTING_FIELDS: tuple[dict[str, str], ...] = (
     {"key": "defensive_scalp_add_step_pct", "env": "DEFENSIVE_SCALP_ADD_STEP_PCT", "label": "震荡加仓间距", "category": "防守震荡", "kind": "float"},
     {"key": "defensive_scalp_min_range_pct", "env": "DEFENSIVE_SCALP_MIN_RANGE_PCT", "label": "震荡最小波动", "category": "防守震荡", "kind": "float"},
     {"key": "defensive_scalp_max_range_pct", "env": "DEFENSIVE_SCALP_MAX_RANGE_PCT", "label": "震荡最大波动", "category": "防守震荡", "kind": "float"},
+    {"key": "adaptive_strategy_enabled", "env": "ADAPTIVE_STRATEGY_ENABLED", "label": "启用自适应资金调度", "category": "自适应策略", "kind": "bool"},
+    {"key": "shadow_mode", "env": "SHADOW_MODE", "label": "影子策略记录", "category": "自适应策略", "kind": "bool"},
+    {"key": "dynamic_take_profit", "env": "DYNAMIC_TAKE_PROFIT", "label": "动态止盈与移动止盈", "category": "自适应策略", "kind": "bool"},
+    {"key": "trailing_profit_pct", "env": "TRAILING_PROFIT_PCT", "label": "上涨移动止盈回撤", "category": "自适应策略", "kind": "float"},
+    {"key": "reconciliation_enabled", "env": "RECONCILIATION_ENABLED", "label": "后台自动对账", "category": "可靠性", "kind": "bool"},
+    {"key": "backtest_slippage_pct", "env": "BACKTEST_SLIPPAGE_PCT", "label": "回测滑点率", "category": "回测成本", "kind": "float"},
+    {"key": "backtest_failure_rate", "env": "BACKTEST_FAILURE_RATE", "label": "回测下单失败率", "category": "回测成本", "kind": "float"},
+    {"key": "backtest_latency_bars", "env": "BACKTEST_LATENCY_BARS", "label": "回测成交延迟 K 线数", "category": "回测成本", "kind": "int"},
 )
 
 
@@ -509,9 +519,12 @@ HTML = """<!doctype html>
             <tr><th>交易费用</th><td id="fees">--</td></tr>
             <tr><th>自动买入</th><td id="buyStatus">--</td></tr>
             <tr><th>趋势判断</th><td id="trendGuard">--</td></tr>
+            <tr><th>市场状态</th><td id="marketRegime">--</td></tr>
+            <tr><th>资金调度</th><td id="capitalPlan">--</td></tr>
             <tr><th>波段抄底</th><td id="swing">--</td></tr>
             <tr><th>防守震荡</th><td id="scalp">--</td></tr>
             <tr><th>账本同步</th><td id="ledgerSync">--</td></tr>
+            <tr><th>决策审计</th><td id="decisionAudit">--</td></tr>
             <tr><th>提示</th><td id="error">--</td></tr>
           </tbody>
         </table>
@@ -1031,7 +1044,7 @@ HTML = """<!doctype html>
         const sideClass = String(t.side || '').includes('BUY') ? 'profit' : 'warn';
         const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${quote > 0 ? fmt(quote, 2) : '--'}</td>`;
+        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${tradeBatchLabel(t)}</td><td>${quote > 0 ? fmt(quote, 2) : '--'}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['时间', '方向', '批次', '金额']);
@@ -1074,6 +1087,12 @@ HTML = """<!doctype html>
     }
     function sideLabel(side) {
       const raw = String(side || '');
+      if (raw === 'LIMIT_SELL_PLACED') return '限价卖出挂单';
+      if (raw === 'LIMIT_SELL_FILLED') return '限价卖出成交';
+      if (raw === 'LIMIT_BUY_PLACED') return '限价买入挂单';
+      if (raw === 'LIMIT_BUY_FILLED') return '限价买入成交';
+      if (raw === 'EXTERNAL_LIMIT_SELL_PLACED') return '外部限价卖出挂单';
+      if (raw === 'EXTERNAL_LIMIT_SELL_FILLED') return '外部限价卖出成交';
       if (raw.includes('BUY')) return raw.includes('LIMIT') ? '限价买入' : '买入';
       if (raw.includes('SELL')) return raw.includes('LIMIT') ? '限价卖出' : '卖出';
       if (raw.includes('CANCELED')) return '取消挂单';
@@ -1099,6 +1118,11 @@ HTML = """<!doctype html>
     function lotDisplay(lot) {
       const id = String(lot.id || '').slice(0, 8);
       return `${levelLabel(lot.level)}${id ? `<span class="lot-id">批次 ${id}</span>` : ''}`;
+    }
+    function tradeBatchLabel(trade) {
+      const id = String(trade.lot_id || '').slice(0, 8);
+      const label = levelLabel(trade.level);
+      return `${label}${id ? `<span class="lot-id">批次 ${id}</span>` : '<span class="lot-id">未关联批次</span>'}`;
     }
     function zhReason(text) {
       const raw = String(text || '--');
@@ -1172,6 +1196,8 @@ HTML = """<!doctype html>
         const pnl = (latestOpenPrice - buy) * qty;
         const fee = Number(lot.fee_quote || lot.buy_fee_quote || 0);
         const status = lot.pending_limit_sell_order_id ? '限价卖出中' : (lot.auto_sell === false ? '手动持仓' : '自动卖出');
+        const exitClass = lot.exit_ready_but_waiting ? 'loss' : 'muted';
+        const exitReason = `<div class="${exitClass}" style="margin-top:5px;font-size:12px;line-height:1.45">${lot.exit_reason || '--'}</div>`;
         const manualPrice = lot.pending_limit_sell_price ? fmt(lot.pending_limit_sell_price, 2) : '--';
         const manualSell = `<button class="secondary-button" data-manual-sell="${lot.id}">市价卖出</button>`;
         const autoToggle = `<button class="secondary-button" data-auto-sell="${lot.id}" data-auto-sell-enabled="${lot.auto_sell === false ? 'true' : 'false'}">${lot.auto_sell === false ? '开启自动卖' : '取消自动卖'}</button>`;
@@ -1179,7 +1205,7 @@ HTML = """<!doctype html>
         const externalClose = `<button class="secondary-button" data-external-close="${lot.id}">外部已卖</button>`;
         const action = `<div class="lot-actions">${manualSell}${autoToggle}${limitSell}${externalClose}</div>`;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span></td><td>${fmt(buy, 2)}</td><td>${fmt(target, 2)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 2)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 2)}</td><td>${action}</td>`;
+        tr.innerHTML = `<td>${lotDisplay(lot)}</td><td><span class="badge">${status}</span>${exitReason}</td><td>${fmt(buy, 2)}</td><td>${fmt(target, 2)}${note}</td><td>${manualPrice}</td><td>${fmt(qty, 8)}</td><td>${fmt(fee, 2)}</td><td class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt(pnl, 2)}</td><td>${action}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['批次', '状态', '成本价', '预计卖价', '手动价格', '数量', '手续费', '浮盈亏', '操作']);
@@ -1419,6 +1445,13 @@ HTML = """<!doctype html>
         const defensiveReasons = defensive.reasons && defensive.reasons.length ? defensive.reasons.map(zhReason).join(' / ') : '未触发';
         const trend = data.trend_guard || {};
         document.getElementById('trendGuard').textContent = `${trend.downtrend ? '下跌趋势保护中' : '趋势正常'}；24小时均线 ${fmt(trend.ma24 || 0, 2)}，7日均线 ${fmt(trend.ma7d || 0, 2)}；${zhReason(trend.reason || '')}`;
+        const regime = data.market_regime || {};
+        document.getElementById('marketRegime').textContent = `${regime.label || '识别中'}；波动 ${fmt(Number(regime.volatility_pct || 0) * 100, 2)}%，回撤 ${fmt(Number(regime.drawdown_pct || 0) * 100, 2)}%；${regime.reason || '--'}`;
+        const plan = data.capital_plan || {};
+        document.getElementById('capitalPlan').textContent = `网格 ${fmt(plan.grid_cap || 0, 2)} / 波段 ${fmt(plan.swing_cap || 0, 2)} / 防守震荡 ${fmt(plan.scalp_cap || 0, 2)} / 抄底 ${fmt(plan.dip_cap || 0, 2)}；新单系数 ${fmt(plan.order_multiplier || 0, 2)}`;
+        const audit = data.decision_audit || [];
+        const lastAudit = audit.length ? audit[audit.length - 1] : null;
+        document.getElementById('decisionAudit').textContent = lastAudit ? `已记录；当前执行 ${zhReason((lastAudit.executed_decision || {}).reason || '--')}` : '等待首次策略审计';
         const swing = data.swing_band || {};
         document.getElementById('swing').textContent = `${swing.enabled ? '开启' : '关闭'}；买入线 ${fmt(swing.buy_price || 0, 2)}，目标线 ${fmt(swing.sell_price || 0, 2)}；已用 ${fmt(swing.position_quote || 0, 2)} / ${fmt(swing.allocation_quote || 0, 2)} ${data.quote_asset}`;
         const scalp = data.defensive_scalp || {};
@@ -2316,6 +2349,10 @@ class Dashboard:
         raw_grid_lots, raw_swing_lots = split_lots(raw_open_lots)
         raw_scalp_lots = [lot for lot in raw_open_lots if is_scalp_lot(lot)]
         open_lots = [self._lot_with_fee(lot) for lot in self._lots_for_strategy(raw_grid_lots) + raw_swing_lots + raw_scalp_lots]
+        for lot in open_lots:
+            reason, ready_but_waiting = self._lot_exit_reason(lot, price)
+            lot["exit_reason"] = reason
+            lot["exit_ready_but_waiting"] = ready_but_waiting
         pending_orders = self._pending_orders_with_lots(pending_orders)
         sizing = position_sizing(
             quote_balance + base_balance * price,
@@ -2346,6 +2383,26 @@ class Dashboard:
             base_balance=base_balance,
             quote_balance=quote_balance,
         )
+        trend_klines = self.client.klines(
+            self.config.symbol,
+            interval=self.config.trend_kline_interval,
+            limit=self.config.trend_kline_limit,
+        )
+        regime = identify_market_regime(price, [float(item[4]) for item in trend_klines])
+        position_quote = base_balance * price
+        plan = capital_plan(
+            quote_balance + position_quote,
+            sizing.max_position_quote,
+            regime,
+            max(0.0, -metrics.pnl_pct / 100),
+            position_quote / max(sizing.max_position_quote, 0.00000001),
+        )
+        audit = DecisionAudit(Path(f"data/decision_audit_{self.config.symbol}.json")).recent(20)
+        reconciliation_path = Path(f"data/reconciliation_{self.config.symbol}.json")
+        try:
+            reconciliation = json.loads(reconciliation_path.read_text()) if reconciliation_path.exists() else {}
+        except json.JSONDecodeError:
+            reconciliation = {"ok": False, "issues": ["对账报告损坏，等待后台重新生成"]}
         return {
             **metrics_asdict(metrics),
             "signal": decision.signal.value,
@@ -2357,6 +2414,10 @@ class Dashboard:
             "trend_guard": trend_guard.to_dict(),
             "swing_band": swing_band,
             "defensive_scalp": scalp_state,
+            "market_regime": regime.to_dict(),
+            "capital_plan": plan.to_dict(),
+            "decision_audit": audit,
+            "reconciliation": reconciliation,
             "chart_range": range_key,
             "chart_interval": interval,
             "price_history": [
@@ -2465,6 +2526,42 @@ class Dashboard:
         if enriched.get("status") == "closed":
             enriched["net_realized_pnl"] = self.ledger.lot_net_realized_pnl(enriched, self.config.trading_fee_rate)
         return enriched
+
+    def _lot_exit_reason(self, lot: dict[str, Any], current_price: float) -> tuple[str, bool]:
+        if lot.get("pending_limit_sell_order_id"):
+            price = float(lot.get("pending_limit_sell_price") or 0)
+            return f"已挂限价卖单 {price:.2f}，等待币安成交", False
+        if lot.get("auto_sell", True) is False:
+            return "自动卖出已关闭；即使达到目标价也不会自动卖", False
+        buy_price = float(lot.get("buy_price") or 0)
+        target = float(lot.get("effective_target_price") or lot.get("target_price") or 0)
+        quantity = float(lot.get("remaining_quantity") or 0)
+        buy_quote = float(lot.get("buy_quote") or buy_price * quantity)
+        buy_fee = float(lot.get("buy_fee_quote") or 0)
+        if quantity <= 0:
+            return "批次数量为零，等待账本对账", True
+        fee_rate = self.config.trading_fee_rate
+        break_even = (buy_quote + buy_fee) / max(quantity * (1 - fee_rate), 0.00000001)
+        protected_break_even = break_even * (1 + max(0.0005, fee_rate * 0.5))
+        if current_price < buy_price:
+            gap = (buy_price / current_price - 1) if current_price > 0 else 0
+            return f"当前仍亏损，距离成本价还差 {buy_price - current_price:.2f}（{gap:.2%}）", False
+        if current_price < protected_break_even:
+            gap = (protected_break_even / current_price - 1) if current_price > 0 else 0
+            return f"尚未覆盖买卖手续费与滑点，安全线 {protected_break_even:.2f}，还差 {gap:.2%}", False
+        if current_price < target:
+            gap = (target / current_price - 1) if current_price > 0 else 0
+            return f"已覆盖成本，但未达到目标利润；目标 {target:.2f}，还差 {gap:.2%}", False
+        if lot.get("trailing_armed"):
+            peak = float(lot.get("trailing_peak_price") or current_price)
+            trigger = peak * (1 - self.config.trailing_profit_pct)
+            return f"上涨趋势移动止盈中；峰值 {peak:.2f}，回落至 {trigger:.2f} 触发卖出", False
+        if not self.execute_trades_enabled():
+            return "已满足卖出价格，但交易总开关关闭", True
+        filters = self.client.symbol_filters(self.config.symbol)
+        if Decimal(str(quantity)) * Decimal(str(current_price)) < filters.min_notional:
+            return f"已满足卖价，但金额低于币安最小下单额 {filters.min_notional}", True
+        return "已满足卖出条件，等待下一次交易循环执行", True
 
     def _lots_for_strategy(self, open_lots: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return enrich_lots_with_defensive_targets(
@@ -2748,6 +2845,11 @@ class Dashboard:
             defensive_scalp_add_step_pct=self.config.defensive_scalp_add_step_pct,
             defensive_scalp_min_range_pct=self.config.defensive_scalp_min_range_pct,
             defensive_scalp_max_range_pct=self.config.defensive_scalp_max_range_pct,
+            slippage_pct=self.config.backtest_slippage_pct,
+            order_failure_rate=self.config.backtest_failure_rate,
+            latency_bars=self.config.backtest_latency_bars,
+            adaptive_strategy_enabled=True,
+            dynamic_take_profit=self.config.dynamic_take_profit,
         )
 
     def manual_buy(self, quote_size: float, target_profit_pct: float, auto_sell: bool | None = None) -> dict[str, Any]:
@@ -3025,7 +3127,7 @@ class Dashboard:
         return {"order": order}
 
     def _process_pending_fill(self, item: dict[str, Any] | None, order: dict[str, Any]) -> bool:
-        if not item:
+        if not item or item.get("processed"):
             return False
         executed_qty = float(order.get("executedQty", 0) or 0)
         quote_qty = _order_quote_qty(order, fallback_price=float(item.get("limit_price", 0) or 0))
@@ -3047,6 +3149,14 @@ class Dashboard:
             self._record_manual_trade("LIMIT_BUY_FILLED", quote_qty, filled_order, lot)
         elif item.get("side") == "SELL" and item.get("lot_id"):
             lot = self.ledger.close_lot(str(item["lot_id"]), filled_order, self.config.trading_fee_rate)
+            if lot is None:
+                existing = next(
+                    (row for row in self.ledger.lots() if str(row.get("id")) == str(item["lot_id"])),
+                    None,
+                )
+                if existing and existing.get("status") == "closed":
+                    return True
+                return False
             self.mark_lot_limit_sell_filled(
                 str(item["lot_id"]),
                 int(item.get("order_id", 0) or 0),
@@ -3122,6 +3232,13 @@ class Dashboard:
                     lot["pending_limit_sell_price"] = limit_price
 
         self.ledger.update_lots(mutate)
+        self.ledger.transition_lot(
+            lot_id,
+            "SELL_PENDING",
+            f"限价卖单 {order_id} 等待成交",
+            pending_limit_sell_order_id=order_id,
+            pending_limit_sell_price=limit_price,
+        )
 
     def clear_lot_pending_sell(self, lot_id: str) -> None:
         def mutate(lots: list[dict[str, Any]]) -> None:
@@ -3131,6 +3248,13 @@ class Dashboard:
                     lot.pop("pending_limit_sell_price", None)
 
         self.ledger.update_lots(mutate)
+        lot = next((item for item in self.ledger.open_lots() if str(item.get("id")) == lot_id), None)
+        if lot:
+            self.ledger.transition_lot(
+                lot_id,
+                "OPEN" if lot.get("auto_sell", True) is not False else "MANUAL_HOLD",
+                "限价挂单已取消或失效",
+            )
 
     def mark_lot_limit_sell_filled(self, lot_id: str, order_id: int, limit_price: float) -> None:
         def mutate(lots: list[dict[str, Any]]) -> None:
@@ -3155,6 +3279,11 @@ class Dashboard:
                 except (BinanceAPIError, KeyError, ValueError):
                     continue
                 item["status"] = order.get("status", status)
+                item["executed_quantity"] = float(order.get("executedQty", 0) or 0)
+                item["executed_quote"] = _order_quote_qty(
+                    order,
+                    fallback_price=float(item.get("limit_price", 0) or 0),
+                )
                 item["updated_at"] = _utc_now()
                 if item["status"] in {"FILLED", "CANCELED", "EXPIRED"} and self._process_pending_fill(item, order):
                     item["processed"] = True

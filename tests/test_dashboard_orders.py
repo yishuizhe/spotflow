@@ -57,7 +57,54 @@ class FakeCanceledOrderClient:
         }
 
 
+class FakeFilledSellOrderClient:
+    def order(self, symbol, order_id):
+        return {
+            "orderId": order_id,
+            "symbol": symbol,
+            "side": "SELL",
+            "status": "FILLED",
+            "executedQty": "0.001",
+            "cummulativeQuoteQty": "65",
+            "price": "65000",
+        }
+
+
 class DashboardOrderTest(unittest.TestCase):
+    def test_open_lot_exit_reason_explains_loss_and_disabled_auto_sell(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret"),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+
+                loss_reason, loss_ready = dashboard._lot_exit_reason(
+                    {
+                        "buy_price": 65000,
+                        "buy_quote": 65,
+                        "buy_fee_quote": 0.065,
+                        "remaining_quantity": 0.001,
+                        "target_price": 66000,
+                        "auto_sell": True,
+                    },
+                    64000,
+                )
+                disabled_reason, disabled_ready = dashboard._lot_exit_reason(
+                    {"auto_sell": False},
+                    70000,
+                )
+
+                self.assertIn("当前仍亏损", loss_reason)
+                self.assertFalse(loss_ready)
+                self.assertIn("自动卖出已关闭", disabled_reason)
+                self.assertFalse(disabled_ready)
+            finally:
+                os.chdir(old_cwd)
     def test_order_quote_qty_falls_back_to_price_times_executed_qty(self) -> None:
         order = {
             "status": "FILLED",
@@ -231,6 +278,62 @@ class DashboardOrderTest(unittest.TestCase):
                 self.assertEqual(orders[0]["status"], "CANCELED")
                 self.assertTrue(orders[0]["processed"])
                 self.assertIn("closed_at", orders[0])
+            finally:
+                os.chdir(old_cwd)
+
+    def test_filled_limit_sell_moves_linked_lot_to_closed_history(self) -> None:
+        with TemporaryDirectory() as tmp:
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(tmp)
+                dashboard = Dashboard(
+                    AgentConfig(api_key="key", api_secret="secret", trading_fee_rate=0.001),
+                    Path("baseline.json"),
+                    Path("trades.jsonl"),
+                    Path("state.json"),
+                )
+                dashboard.client = FakeFilledSellOrderClient()
+                dashboard.ledger.save(
+                    [
+                        {
+                            "id": "lot-1",
+                            "level": "manual-entry",
+                            "status": "open",
+                            "buy_price": 62000,
+                            "buy_quote": 62,
+                            "quantity": 0.001,
+                            "remaining_quantity": 0.001,
+                            "buy_fee_quote": 0.062,
+                            "target_price": 64000,
+                            "pending_limit_sell_order_id": 88,
+                            "pending_limit_sell_price": 65000,
+                        }
+                    ]
+                )
+                dashboard.save_pending_orders(
+                    [
+                        {
+                            "order_id": 88,
+                            "side": "SELL",
+                            "lot_id": "lot-1",
+                            "level": "manual-limit-sell",
+                            "status": "NEW",
+                            "quantity": 0.001,
+                            "limit_price": 65000,
+                            "processed": False,
+                        }
+                    ]
+                )
+
+                orders = dashboard.sync_pending_orders()
+                lot = dashboard.ledger.lots()[0]
+
+                self.assertTrue(orders[0]["processed"])
+                self.assertEqual(orders[0]["status"], "FILLED")
+                self.assertEqual(lot["status"], "closed")
+                self.assertTrue(lot["limit_sell_filled"])
+                self.assertEqual(lot["limit_sell_order_id"], 88)
+                self.assertEqual(len(dashboard.closed_lots()), 1)
             finally:
                 os.chdir(old_cwd)
 

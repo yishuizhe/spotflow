@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.0.0 - 2026-06-13
+
+- Added explicit lot lifecycle states and per-lot exit explanations.
+- Added an independent pending-order fill worker that links fills to lot IDs and closes the correct ledger lot.
+- Added account/order reconciliation and SQLite decision auditing.
+- Added market-regime detection, unified capital allocation, volatility/drawdown-aware sizing, and layered portfolio risk controls.
+- Added adaptive profit targets and optional uptrend trailing exits behind an opt-in adaptive strategy flag.
+- Added shadow decisions so the adaptive model can be compared without placing its orders.
+- Added realistic backtest slippage, exchange minimums, order failures, and execution latency.
+- Split order synchronization and reconciliation into independent services.
+
 ## v1.0.20 - 2026-06-13
 
 - Fixed manual lots failing to auto-sell after their saved target was reached because the final gate reapplied the global profit target.

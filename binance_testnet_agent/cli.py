@@ -7,6 +7,7 @@ import sys
 from .agent import TradingAgent
 from .binance_client import BinanceAPIError
 from .config import AgentConfig
+from .reconcile import AccountReconciler
 
 
 def _print_json(payload: object) -> None:
@@ -20,6 +21,7 @@ def main() -> None:
     subparsers.add_parser("account", help="Show spot account balances")
     subparsers.add_parser("once", help="Run one strategy cycle")
     subparsers.add_parser("run", help="Run strategy loop")
+    subparsers.add_parser("reconcile", help="Compare Binance balances and orders with the local ledger")
     args = parser.parse_args()
 
     agent = TradingAgent(AgentConfig.from_env())
@@ -33,6 +35,8 @@ def main() -> None:
             _print_json(agent.once())
         elif args.command == "run":
             agent.run_forever()
+        elif args.command == "reconcile":
+            _print_json(AccountReconciler(AgentConfig.from_env()).run().to_dict())
     except BinanceAPIError as exc:
         _print_json({"ok": False, "error": str(exc)})
         sys.exit(1)

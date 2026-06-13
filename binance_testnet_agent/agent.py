@@ -8,6 +8,15 @@ from decimal import Decimal, ROUND_DOWN
 from pathlib import Path
 from typing import Any
 
+from .adaptive import (
+    allocate_decision,
+    capital_plan,
+    dynamic_profit_pct,
+    identify_market_regime,
+    layered_risk,
+    strategy_name,
+)
+from .audit import DecisionAudit
 from .binance_client import BinanceAPIError, BinanceSpotClient
 from .config import AgentConfig
 from .defensive import DefensiveMode, enrich_lots_with_defensive_targets, evaluate_defensive_mode
@@ -29,7 +38,9 @@ class TradingAgent:
         self.state_path = Path(f"data/grid_state_{config.symbol}.json")
         self.trades_path = Path(f"data/trades_{config.symbol}.jsonl")
         self.control_path = Path("data/control.json")
+        self.risk_state_path = Path(f"data/risk_state_{config.symbol}.json")
         self.ledger = PositionLedger(Path(f"data/lots_{config.symbol}.json"))
+        self.audit = DecisionAudit(Path(f"data/decision_audit_{config.symbol}.json"))
 
     def health(self) -> dict[str, Any]:
         return {
@@ -73,9 +84,52 @@ class TradingAgent:
         risk = self._risk(snapshot)
         if decision.signal == Signal.BUY and not risk["allow_buy"] and not self._buy_can_bypass_risk(decision, risk, trend_state, scalp_state):
             decision = StrategyDecision(Signal.HOLD, risk["reason"], decision.reference_price, decision.price)
+        baseline_decision = decision
+        regime = self._market_regime(snapshot)
+        total_value = snapshot.quote_balance + snapshot.base_balance * snapshot.price
+        risk_state = self._portfolio_risk_state(total_value)
+        position_quote = snapshot.base_balance * snapshot.price
+        usage = position_quote / max(sizing.max_position_quote, 0.00000001)
+        plan = capital_plan(total_value, sizing.max_position_quote, regime, risk_state["drawdown_pct"], usage)
+        price_break = max(0.0, 1 - snapshot.price / regime.ma_slow) if regime.ma_slow > 0 else 0.0
+        portfolio_risk = layered_risk(
+            account_drawdown_pct=risk_state["drawdown_pct"],
+            daily_loss_quote=risk_state["daily_pnl_quote"],
+            max_daily_loss_quote=self.config.max_daily_loss_quote,
+            position_usage_pct=usage,
+            volatility_pct=regime.volatility_pct,
+            price_break_pct=price_break,
+        )
+        adaptive_decision = allocate_decision(
+            decision,
+            plan,
+            portfolio_risk,
+            self._strategy_positions(open_lots, snapshot.price),
+            float(self.client.symbol_filters(self.config.symbol).min_notional),
+        )
+        adaptive_decision = self._dynamic_buy_target(adaptive_decision, regime)
+        if self.config.adaptive_strategy_enabled:
+            decision = adaptive_decision
+        trailing_decision = self._trailing_exit(snapshot, regime, open_lots, decision)
+        if trailing_decision is not None:
+            decision = trailing_decision
         decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
+        self.audit.record(
+            {
+                "price": snapshot.price,
+                "market_regime": regime.to_dict(),
+                "capital_plan": plan.to_dict(),
+                "portfolio_risk": portfolio_risk.to_dict(),
+                "baseline_decision": asdict(baseline_decision),
+                "adaptive_decision": asdict(adaptive_decision),
+                "executed_decision": asdict(decision),
+                "shadow_mode": self.config.shadow_mode,
+                "adaptive_enabled": self.config.adaptive_strategy_enabled,
+                "order_result": order_result,
+            }
+        )
         return {
             "snapshot": asdict(snapshot),
             "decision": asdict(decision),
@@ -88,6 +142,10 @@ class TradingAgent:
             "swing_band": swing_band.to_dict(),
             "trend_guard": trend_state.to_dict(),
             "defensive_scalp": scalp_state.to_dict(),
+            "market_regime": regime.to_dict(),
+            "capital_plan": plan.to_dict(),
+            "portfolio_risk": portfolio_risk.to_dict(),
+            "shadow_decision": asdict(adaptive_decision) if self.config.shadow_mode else None,
         }
 
     def run_forever(self) -> None:
@@ -130,7 +188,125 @@ class TradingAgent:
             "swing_band": result.get("swing_band"),
             "trend_guard": result.get("trend_guard"),
             "defensive_scalp": result.get("defensive_scalp"),
+            "market_regime": result.get("market_regime"),
+            "capital_plan": result.get("capital_plan"),
+            "portfolio_risk": result.get("portfolio_risk"),
+            "shadow_decision": result.get("shadow_decision"),
         }
+
+    def _market_regime(self, snapshot: MarketSnapshot) -> Any:
+        klines = self.client.klines(
+            self.config.symbol,
+            interval=self.config.trend_kline_interval,
+            limit=self.config.trend_kline_limit,
+        )
+        return identify_market_regime(snapshot.price, [float(item[4]) for item in klines])
+
+    def _portfolio_risk_state(self, total_value: float) -> dict[str, float]:
+        today = datetime.now(timezone.utc).date().isoformat()
+        state = {"peak_value": total_value, "day": today, "day_start_value": total_value}
+        if self.risk_state_path.exists():
+            try:
+                loaded = json.loads(self.risk_state_path.read_text())
+                if isinstance(loaded, dict):
+                    state.update(loaded)
+            except json.JSONDecodeError:
+                pass
+        state["peak_value"] = max(float(state.get("peak_value", total_value) or total_value), total_value)
+        if state.get("day") != today:
+            state["day"] = today
+            state["day_start_value"] = total_value
+        peak = float(state["peak_value"])
+        day_start = float(state.get("day_start_value", total_value) or total_value)
+        self.risk_state_path.parent.mkdir(parents=True, exist_ok=True)
+        self.risk_state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+        return {
+            "drawdown_pct": max(0.0, 1 - total_value / peak) if peak > 0 else 0.0,
+            "daily_pnl_quote": total_value - day_start,
+        }
+
+    @staticmethod
+    def _strategy_positions(open_lots: list[dict[str, Any]], price: float) -> dict[str, float]:
+        positions = {"grid": 0.0, "swing": 0.0, "scalp": 0.0, "dip": 0.0}
+        for lot in open_lots:
+            level = str(lot.get("level", ""))
+            key = "scalp" if level.startswith("scalp-") else "swing" if level.startswith("swing-") else "grid"
+            positions[key] += float(lot.get("remaining_quantity", 0) or 0) * price
+        return positions
+
+    def _dynamic_buy_target(self, decision: StrategyDecision, regime: Any) -> StrategyDecision:
+        if decision.signal != Signal.BUY or not self.config.dynamic_take_profit:
+            return decision
+        profit = dynamic_profit_pct(regime, self.config.take_profit_pct)
+        target = decision.price * (1 + profit + self.config.trading_fee_rate * 2)
+        if strategy_name(decision) == "swing" and decision.target_price > 0:
+            target = max(target, decision.target_price)
+        return StrategyDecision(
+            decision.signal,
+            f"{decision.reason}；动态止盈 {profit:.2%}",
+            decision.reference_price,
+            decision.price,
+            decision.order_quote_size,
+            decision.level,
+            decision.lot_id,
+            decision.quantity,
+            target,
+        )
+
+    def _trailing_exit(
+        self,
+        snapshot: MarketSnapshot,
+        regime: Any,
+        open_lots: list[dict[str, Any]],
+        current_decision: StrategyDecision,
+    ) -> StrategyDecision | None:
+        if (
+            not self.config.adaptive_strategy_enabled
+            or not self.config.dynamic_take_profit
+            or regime.name != "uptrend"
+        ):
+            return None
+        triggered: dict[str, Any] | None = None
+
+        def update(lots: list[dict[str, Any]]) -> None:
+            nonlocal triggered
+            for lot in lots:
+                if lot.get("status") != "open" or lot.get("auto_sell", True) is False or lot.get("pending_limit_sell_order_id"):
+                    continue
+                target = float(lot.get("effective_target_price") or lot.get("target_price") or 0)
+                if target <= 0:
+                    continue
+                peak = max(float(lot.get("trailing_peak_price", 0) or 0), snapshot.price if snapshot.price >= target else 0)
+                if peak >= target:
+                    lot["trailing_armed"] = True
+                    lot["trailing_peak_price"] = peak
+                    lot["lifecycle_note"] = f"上涨趋势移动止盈已启动，峰值 {peak:.2f}"
+                if lot.get("trailing_armed") and snapshot.price <= peak * (1 - self.config.trailing_profit_pct):
+                    triggered = dict(lot)
+                    return
+
+        self.ledger.update_lots(update)
+        if triggered:
+            qty = float(triggered.get("remaining_quantity", 0) or 0)
+            return StrategyDecision(
+                Signal.SELL,
+                "上涨趋势移动止盈回撤触发",
+                float(triggered.get("trailing_peak_price", snapshot.price)),
+                snapshot.price,
+                qty * snapshot.price,
+                "trailing-target",
+                str(triggered.get("id")),
+                qty,
+                float(triggered.get("target_price", 0) or 0),
+            )
+        if current_decision.signal == Signal.SELL:
+            return StrategyDecision(
+                Signal.HOLD,
+                "上涨趋势已达到目标，移动止盈等待回撤",
+                current_decision.reference_price,
+                current_decision.price,
+            )
+        return None
 
     def _reload_config(self) -> None:
         latest = AgentConfig.from_env()

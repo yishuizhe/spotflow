@@ -1,0 +1,18 @@
+[Unit]
+Description=SpotFlow pending order fill synchronization worker
+After=network-online.target binance-testnet-agent.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/binance-testnet-agent
+EnvironmentFile=/opt/binance-testnet-agent/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m binance_testnet_agent.order_sync_worker
+Restart=always
+RestartSec=10
+User=ubuntu
+Group=ubuntu
+
+[Install]
+WantedBy=multi-user.target

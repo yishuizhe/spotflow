@@ -7,6 +7,7 @@ import random
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 
+from .adaptive import allocate_decision, capital_plan, dynamic_profit_pct, identify_market_regime, layered_risk
 from .defensive import enrich_lots_with_defensive_targets, evaluate_defensive_mode
 from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .risk import evaluate_buy_risk
@@ -63,6 +64,12 @@ class BacktestConfig:
     defensive_scalp_add_step_pct: float = 0.003
     defensive_scalp_min_range_pct: float = 0.004
     defensive_scalp_max_range_pct: float = 0.018
+    slippage_pct: float = 0.0005
+    order_failure_rate: float = 0.002
+    latency_bars: int = 1
+    min_notional: float = 5.0
+    adaptive_strategy_enabled: bool = False
+    dynamic_take_profit: bool = True
     seed: int = 20260529
 
 
@@ -110,6 +117,7 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
     peak_value = config.initial_quote
     max_drawdown = 0.0
     start_time = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    execution_rng = random.Random(config.seed + 2026)
 
     for index, price in enumerate(prices):
         now = start_time + timedelta(minutes=index)
@@ -161,6 +169,48 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
             decision = scalp_decision
         elif decision.signal == Signal.HOLD and scalp_decision.signal == Signal.BUY:
             decision = scalp_decision
+        regime_prices = prices[: index + 1 : max(1, int(60 / max(1, config.price_interval_minutes)))]
+        regime = identify_market_regime(price, regime_prices)
+        current_value_before = quote_balance + base_balance * price
+        drawdown_pct = max(0.0, 1 - current_value_before / peak_value) if peak_value > 0 else 0.0
+        position_quote = base_balance * price
+        position_usage = position_quote / max(sizing.max_position_quote, 0.00000001)
+        plan = capital_plan(current_value_before, sizing.max_position_quote, regime, drawdown_pct, position_usage)
+        portfolio_risk = layered_risk(
+            account_drawdown_pct=drawdown_pct,
+            daily_loss_quote=current_value_before - config.initial_quote,
+            max_daily_loss_quote=max(config.max_floating_loss_quote, config.initial_quote * 0.08),
+            position_usage_pct=position_usage,
+            volatility_pct=regime.volatility_pct,
+            price_break_pct=max(0.0, 1 - price / regime.ma_slow) if regime.ma_slow > 0 else 0.0,
+        )
+        if config.adaptive_strategy_enabled:
+            strategy_positions = {
+                "grid": sum(float(lot["remaining_quantity"]) * price for lot in lots if not is_scalp_lot(lot)),
+                "swing": 0.0,
+                "scalp": sum(float(lot["remaining_quantity"]) * price for lot in lots if is_scalp_lot(lot)),
+                "dip": 0.0,
+            }
+            decision = allocate_decision(
+                decision,
+                plan,
+                portfolio_risk,
+                strategy_positions,
+                config.min_notional,
+            )
+        if decision.signal == Signal.BUY and config.dynamic_take_profit:
+            profit = dynamic_profit_pct(regime, config.take_profit_pct)
+            decision = StrategyDecision(
+                decision.signal,
+                decision.reason,
+                decision.reference_price,
+                decision.price,
+                decision.order_quote_size,
+                decision.level,
+                decision.lot_id,
+                decision.quantity,
+                max(decision.target_price, price * (1 + profit + config.trading_fee_rate * 2)),
+            )
         risk = evaluate_buy_risk(
             price=price,
             recent_closes=recent,
@@ -198,21 +248,29 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
                 max_drawdown = max(max_drawdown, peak_value - current_value)
                 continue
             quote_size = float(trend["quote_size"])
+            if quote_size < config.min_notional:
+                blocked_buys += 1
+                continue
+            if execution_rng.random() < config.order_failure_rate:
+                blocked_buys += 1
+                continue
+            fill_index = min(len(prices) - 1, index + max(0, config.latency_bars))
+            fill_price = prices[fill_index] * (1 + max(0.0, config.slippage_pct))
             buy_fee = quote_size * config.trading_fee_rate
             if quote_balance >= quote_size + buy_fee:
-                qty = quote_size / price
+                qty = quote_size / fill_price
                 quote_balance -= quote_size + buy_fee
                 fees_paid += buy_fee
                 lots.append(
                     {
                         "id": f"lot-{index}-{buys}",
                         "level": decision.level,
-                        "buy_price": price,
+                        "buy_price": fill_price,
                         "buy_quote": quote_size,
                         "buy_fee_quote": buy_fee,
                         "quantity": qty,
                         "remaining_quantity": qty,
-                        "target_price": decision.target_price or price * (1 + config.take_profit_pct + config.trading_fee_rate * 2),
+                        "target_price": decision.target_price or fill_price * (1 + config.take_profit_pct + config.trading_fee_rate * 2),
                         "status": "open",
                         "opened_at": now.isoformat(),
                     }
@@ -224,13 +282,19 @@ def run_backtest(scenario: str, prices: list[float], config: BacktestConfig) -> 
             lot = next((item for item in lots if item["id"] == decision.lot_id), None)
             if lot:
                 qty = float(lot["remaining_quantity"])
-                proceeds = qty * price
+                if execution_rng.random() < config.order_failure_rate:
+                    continue
+                fill_index = min(len(prices) - 1, index + max(0, config.latency_bars))
+                fill_price = prices[fill_index] * (1 - max(0.0, config.slippage_pct))
+                proceeds = qty * fill_price
+                if proceeds < config.min_notional:
+                    continue
                 sell_fee = proceeds * config.trading_fee_rate
                 quote_balance += proceeds - sell_fee
                 fees_paid += sell_fee
                 cost = float(lot["buy_quote"])
                 buy_fee = float(lot.get("buy_fee_quote") or 0)
-                lot["sell_price"] = price
+                lot["sell_price"] = fill_price
                 lot["sell_quote"] = proceeds
                 lot["sell_fee_quote"] = sell_fee
                 lot["total_fee_quote"] = buy_fee + sell_fee

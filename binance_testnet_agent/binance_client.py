@@ -106,6 +106,10 @@ class BinanceSpotClient:
             {"symbol": symbol, "origClientOrderId": client_order_id},
         )
 
+    def open_orders(self, symbol: str) -> list[dict[str, Any]]:
+        result = self._signed_request("GET", "/api/v3/openOrders", {"symbol": symbol})
+        return result if isinstance(result, list) else []
+
     def cancel_order(self, symbol: str, order_id: int) -> dict[str, Any]:
         return self._signed_request("DELETE", "/api/v3/order", {"symbol": symbol, "orderId": order_id})
 

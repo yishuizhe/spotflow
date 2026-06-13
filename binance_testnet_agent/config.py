@@ -87,6 +87,14 @@ class AgentConfig:
     defensive_scalp_min_range_pct: float = 0.004
     defensive_scalp_max_range_pct: float = 0.018
     manual_buy_auto_sell: bool = False
+    adaptive_strategy_enabled: bool = False
+    shadow_mode: bool = True
+    reconciliation_enabled: bool = True
+    dynamic_take_profit: bool = True
+    trailing_profit_pct: float = 0.003
+    backtest_slippage_pct: float = 0.0005
+    backtest_failure_rate: float = 0.002
+    backtest_latency_bars: int = 1
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -150,4 +158,12 @@ class AgentConfig:
             defensive_scalp_min_range_pct=float(os.getenv("DEFENSIVE_SCALP_MIN_RANGE_PCT", "0.004")),
             defensive_scalp_max_range_pct=float(os.getenv("DEFENSIVE_SCALP_MAX_RANGE_PCT", "0.018")),
             manual_buy_auto_sell=_bool_env("MANUAL_BUY_AUTO_SELL", False),
+            adaptive_strategy_enabled=_bool_env("ADAPTIVE_STRATEGY_ENABLED", False),
+            shadow_mode=_bool_env("SHADOW_MODE", True),
+            reconciliation_enabled=_bool_env("RECONCILIATION_ENABLED", True),
+            dynamic_take_profit=_bool_env("DYNAMIC_TAKE_PROFIT", True),
+            trailing_profit_pct=float(os.getenv("TRAILING_PROFIT_PCT", "0.003")),
+            backtest_slippage_pct=float(os.getenv("BACKTEST_SLIPPAGE_PCT", "0.0005")),
+            backtest_failure_rate=float(os.getenv("BACKTEST_FAILURE_RATE", "0.002")),
+            backtest_latency_bars=int(os.getenv("BACKTEST_LATENCY_BARS", "1")),
         )

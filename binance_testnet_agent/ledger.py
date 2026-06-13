@@ -117,6 +117,8 @@ class PositionLedger:
             record["level"] = level
             record["executed_quantity"] = executed_qty
             record["base_commission_quantity"] = base_commission
+            record["lifecycle_state"] = "OPEN"
+            record["lifecycle_note"] = "买入成交，等待退出条件"
             lots.append(record)
             return record
 
@@ -157,6 +159,11 @@ class PositionLedger:
                 if remaining <= 0.00000001:
                     lot["status"] = "closed"
                     lot["closed_at"] = _now()
+                    lot["lifecycle_state"] = "CLOSED"
+                    lot["lifecycle_note"] = "卖出成交，批次已平仓"
+                else:
+                    lot["lifecycle_state"] = "PARTIALLY_CLOSED"
+                    lot["lifecycle_note"] = "部分卖出成交，仍有剩余持仓"
                 return lot
             return None
 
@@ -206,6 +213,11 @@ class PositionLedger:
                 if remaining <= 0.00000001:
                     lot["status"] = "closed"
                     lot["closed_at"] = _now()
+                    lot["lifecycle_state"] = "EXTERNALLY_CLOSED"
+                    lot["lifecycle_note"] = note
+                else:
+                    lot["lifecycle_state"] = "PARTIALLY_CLOSED"
+                    lot["lifecycle_note"] = note
                 return lot
             return None
 
@@ -217,7 +229,35 @@ class PositionLedger:
                 if lot.get("id") != lot_id or lot.get("status") != "open":
                     continue
                 lot["auto_sell"] = enabled
+                lot["lifecycle_state"] = "OPEN" if enabled else "MANUAL_HOLD"
+                lot["lifecycle_note"] = "自动卖出已开启" if enabled else "自动卖出已关闭"
                 return lot
+            return None
+
+        return self.update_lots(mutate)
+
+    def transition_lot(self, lot_id: str, state: str, note: str = "", **fields: Any) -> dict[str, Any] | None:
+        allowed = {
+            "OPEN",
+            "MANUAL_HOLD",
+            "SELL_PENDING",
+            "PARTIALLY_CLOSED",
+            "CLOSED",
+            "EXTERNALLY_CLOSED",
+            "RECONCILE_REQUIRED",
+            "ERROR",
+        }
+        if state not in allowed:
+            raise ValueError(f"unsupported lifecycle state: {state}")
+
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any] | None:
+            for lot in lots:
+                if str(lot.get("id")) != lot_id:
+                    continue
+                lot["lifecycle_state"] = state
+                lot["lifecycle_note"] = note
+                lot.update(fields)
+                return dict(lot)
             return None
 
         return self.update_lots(mutate)
