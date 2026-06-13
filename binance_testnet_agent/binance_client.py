@@ -153,6 +153,7 @@ class BinanceSpotClient:
         order_params = dict(params)
         client_order_id = f"sf-{int(time.time() * 1000):x}-{secrets.token_hex(4)}"
         order_params["newClientOrderId"] = client_order_id
+        order_params["newOrderRespType"] = "FULL"
         try:
             return self._signed_request("POST", "/api/v3/order", order_params)
         except BinanceAPIError as exc:

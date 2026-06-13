@@ -346,7 +346,9 @@ class TradingAgent:
             return self._blocked_sell(decision, "sell gate blocked: lot cost basis is missing")
         fee_rate = self.config.trading_fee_rate
         breakeven_price = true_unit_cost * (1 + fee_rate) / max(1 - fee_rate, 0.00000001)
-        required_price = max(breakeven_price, self._strategy_sell_floor(lot))
+        slippage_buffer = max(0.0005, fee_rate * 0.5)
+        protected_breakeven = breakeven_price * (1 + slippage_buffer)
+        required_price = max(protected_breakeven, self._strategy_sell_floor(lot))
         if decision.price < required_price:
             return self._blocked_sell(
                 decision,
@@ -358,6 +360,8 @@ class TradingAgent:
         level = str(lot.get("level", ""))
         buy_price = float(lot.get("buy_price", 0) or 0)
         fee_markup = self.config.trading_fee_rate * 2
+        if level.startswith("manual-"):
+            return float(lot.get("target_price", 0) or 0)
         if level.startswith("scalp-"):
             return max(
                 float(lot.get("target_price", 0) or 0),

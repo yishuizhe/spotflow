@@ -77,6 +77,21 @@ class DashboardOrderTest(unittest.TestCase):
 
         self.assertAlmostEqual(_order_quote_qty(order, fallback_price=65000), 64.5)
 
+    def test_order_quote_qty_uses_fills_when_summary_fields_are_zero(self) -> None:
+        order = {
+            "status": "FILLED",
+            "executedQty": "0.001",
+            "cummulativeQuoteQty": "0",
+            "origQuoteOrderQty": "0",
+            "price": "0",
+            "fills": [
+                {"price": "64000", "qty": "0.0004"},
+                {"price": "64100", "qty": "0.0006"},
+            ],
+        }
+
+        self.assertAlmostEqual(_order_quote_qty(order), 64.06)
+
     def test_historical_backtest_interval_scales_with_date_range(self) -> None:
         self.assertEqual(_historical_backtest_interval("2026-04-01", "2026-04-07"), "1m")
         self.assertEqual(_historical_backtest_interval("2026-04-01", "2026-05-01"), "5m")

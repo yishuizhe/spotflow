@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.20 - 2026-06-13
+
+- Fixed manual lots failing to auto-sell after their saved target was reached because the final gate reapplied the global profit target.
+- Added a fee-aware market-slippage buffer to the final automatic sell guard.
+- Removed zero-value auto-sell toggle events from the recent live order list.
+- Added fill-based quote amount recovery and requested full Binance order responses.
+- Recorded manual market trades using actual execution quote amounts when available.
+
 ## v1.0.19 - 2026-06-08
 
 - Added a cross-process trading lock shared by the agent and dashboard so auto-sell changes, manual orders, pending-order synchronization, exchange submission, and ledger updates cannot race each other.

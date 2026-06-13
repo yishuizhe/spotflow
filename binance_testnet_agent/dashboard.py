@@ -1019,19 +1019,19 @@ HTML = """<!doctype html>
       latestTrades = trades || latestTrades;
       const tbody = document.getElementById('trades');
       tbody.innerHTML = '';
-      if (!latestTrades.length) {
+      const rows = latestTrades.filter(isActualTradeRecord).slice().reverse();
+      if (!rows.length) {
         tbody.innerHTML = '<tr><td colspan="4" class="muted">暂无订单</td></tr>';
         updatePager('trade', 0, 0);
         return;
       }
-      const rows = latestTrades.slice().reverse();
       const pages = Math.max(1, Math.ceil(rows.length / tradePageSize));
       tradePage = Math.min(tradePage, pages - 1);
       rows.slice(tradePage * tradePageSize, (tradePage + 1) * tradePageSize).forEach(t => {
         const sideClass = String(t.side || '').includes('BUY') ? 'profit' : 'warn';
         const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${fmt(quote || 0, 2)}</td>`;
+        tr.innerHTML = `<td>${new Date(t.ts).toLocaleString()}</td><td><span class="badge ${sideClass}">${sideLabel(t.side)}</span></td><td>${levelLabel(t.level)}</td><td>${quote > 0 ? fmt(quote, 2) : '--'}</td>`;
         tbody.appendChild(tr);
       });
       applyMobileLabels(tbody, ['时间', '方向', '批次', '金额']);
@@ -1050,10 +1050,27 @@ HTML = """<!doctype html>
     }
     function tradeQuoteAmount(trade) {
       const order = trade.order || {};
+      const fillsQuote = Array.isArray(order.fills)
+        ? order.fills.reduce((sum, fill) => sum + positiveNumber(fill.price) * positiveNumber(fill.qty), 0)
+        : 0;
       return positiveNumber(order.cummulativeQuoteQty)
         || positiveNumber(order.origQuoteOrderQty)
         || (positiveNumber(order.price) * positiveNumber(order.origQty))
+        || fillsQuote
         || positiveNumber(trade.target_quote_size);
+    }
+    function isActualTradeRecord(trade) {
+      const side = String(trade.side || '').toUpperCase();
+      return side === 'BUY'
+        || side === 'SELL'
+        || side === 'MANUAL_BUY'
+        || side === 'MANUAL_SELL'
+        || side === 'LIMIT_BUY_PLACED'
+        || side === 'LIMIT_SELL_PLACED'
+        || side === 'EXTERNAL_LIMIT_SELL_PLACED'
+        || side === 'LIMIT_BUY_FILLED'
+        || side === 'LIMIT_SELL_FILLED'
+        || side === 'EXTERNAL_LIMIT_SELL_FILLED';
     }
     function sideLabel(side) {
       const raw = String(side || '');
@@ -2765,7 +2782,12 @@ class Dashboard:
             auto_sell_enabled,
             self.config.base_asset,
         )
-        self._record_manual_trade("MANUAL_BUY", quote_size, order, lot)
+        self._record_manual_trade(
+            "MANUAL_BUY",
+            _order_quote_qty(order) or quote_size,
+            order,
+            lot,
+        )
         return {"order": order, "lot": lot}
 
     def manual_limit_buy(
@@ -2845,7 +2867,12 @@ class Dashboard:
         except BinanceAPIError as exc:
             return {"error": self._friendly_balance_error(exc, self.config.base_asset, base_free, base_locked)}
         updated = self.ledger.close_lot(lot_id, order, self.config.trading_fee_rate)
-        self._record_manual_trade("MANUAL_SELL", float(rounded_qty) * price, order, updated)
+        self._record_manual_trade(
+            "MANUAL_SELL",
+            _order_quote_qty(order, fallback_price=price) or float(rounded_qty) * price,
+            order,
+            updated,
+        )
         return {"order": order, "lot": updated}
 
     @staticmethod
@@ -3381,6 +3408,13 @@ def _order_quote_qty(order: dict[str, Any], fallback_price: float = 0.0) -> floa
     orig_quote_qty = float(order.get("origQuoteOrderQty", 0) or 0)
     if orig_quote_qty > 0 and str(order.get("status", "")).upper() == "FILLED":
         return orig_quote_qty
+    fills_quote = sum(
+        float(fill.get("price", 0) or 0) * float(fill.get("qty", 0) or 0)
+        for fill in order.get("fills", [])
+        if isinstance(fill, dict)
+    )
+    if fills_quote > 0:
+        return fills_quote
     executed_qty = float(order.get("executedQty", 0) or 0)
     price = float(order.get("price", 0) or 0) or fallback_price
     return executed_qty * price if executed_qty > 0 and price > 0 else 0.0

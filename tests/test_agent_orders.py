@@ -147,6 +147,36 @@ class AgentOrderTest(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_manual_lot_sell_gate_uses_saved_target_instead_of_global_profit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path.cwd()
+            try:
+                import os
+
+                os.chdir(tmp)
+                agent = self._agent_with_lot(
+                    level="manual-entry",
+                    buy_price=100,
+                    buy_quote=1,
+                    target_price=100.45,
+                )
+                decision = StrategyDecision(
+                    Signal.SELL,
+                    "manual lot reached saved target",
+                    100,
+                    100.5,
+                    1.005,
+                    "lot-target",
+                    "lot-1",
+                    0.01,
+                )
+
+                guarded = agent._sell_gate(decision)
+
+                self.assertEqual(guarded.signal, Signal.SELL)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()
