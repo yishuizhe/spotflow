@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.2 - 2026-06-14
+
+- Rebalanced the account/strategy and recent-order desktop columns with denser status rows and full-page order table height distribution.
+- Aligned panel headings, table starts, and the order pager while preserving natural row heights on short final pages.
+
 ## v2.0.1 - 2026-06-14
 
 - Added one-click cancellation for all active local limit orders with per-order result summaries.

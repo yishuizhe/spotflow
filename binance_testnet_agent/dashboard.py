@@ -231,7 +231,7 @@ HTML = """<!doctype html>
     .split .panel { min-height: 430px; display: flex; flex-direction: column; }
     .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
     .panel-title { font-size: 16px; font-weight: 800; color: var(--text); }
-    .account-table { margin-top: 4px; }
+    .account-table { margin-top: 4px; table-layout: fixed; }
     .account-summary { display: grid; gap: 12px; margin-top: 8px; }
     .summary-card { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: color-mix(in srgb, var(--panel-strong) 88%, transparent); }
     .summary-card strong { font-size: 18px; overflow-wrap: anywhere; }
@@ -240,11 +240,17 @@ HTML = """<!doctype html>
     .status-item { padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid var(--line-soft); }
     .status-item .k { color: var(--muted); font-size: 12px; font-weight: 800; margin-bottom: 5px; }
     .status-item .v { font-weight: 760; line-height: 1.45; overflow-wrap: anywhere; }
-    .account-table th { width: 150px; color: var(--muted); font-size: 13px; }
-    .account-table td { color: var(--text); font-weight: 650; }
+    .account-table th { width: 132px; color: var(--muted); font-size: 13px; }
+    .account-table th, .account-table td { padding: 9px 10px; line-height: 1.38; }
+    .account-table td { color: var(--text); font-size: 13px; font-weight: 650; }
     .orders-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-    .orders-table td { height: 54px; vertical-align: middle; }
-    .orders-panel .table-scroll { flex: 1; }
+    .orders-table td { height: 50px; vertical-align: middle; }
+    .orders-panel .table-scroll { flex: 1; min-height: 0; }
+    .orders-panel .orders-table { margin-top: 4px; }
+    @media (min-width: 1101px) {
+      .orders-panel .table-scroll { display: flex; }
+      .orders-panel .orders-table.fill-panel { height: 100%; }
+    }
     .table-scroll { overflow-x: auto; }
     .pager { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; color: #687789; font-size: 13px; }
     .pager button { border: 1px solid var(--line); background: var(--panel-strong); color: var(--text); border-radius: 6px; height: 30px; min-width: 34px; padding: 0 10px; font-weight: 700; cursor: pointer; }
@@ -1034,16 +1040,20 @@ HTML = """<!doctype html>
     function renderTrades(trades) {
       latestTrades = trades || latestTrades;
       const tbody = document.getElementById('trades');
+      const table = tbody.closest('table');
       tbody.innerHTML = '';
       const rows = latestTrades.filter(isActualTradeRecord).slice().reverse();
       if (!rows.length) {
+        table.classList.remove('fill-panel');
         tbody.innerHTML = '<tr><td colspan="4" class="muted">暂无订单</td></tr>';
         updatePager('trade', 0, 0);
         return;
       }
       const pages = Math.max(1, Math.ceil(rows.length / tradePageSize));
       tradePage = Math.min(tradePage, pages - 1);
-      rows.slice(tradePage * tradePageSize, (tradePage + 1) * tradePageSize).forEach(t => {
+      const pageRows = rows.slice(tradePage * tradePageSize, (tradePage + 1) * tradePageSize);
+      table.classList.toggle('fill-panel', pageRows.length === tradePageSize);
+      pageRows.forEach(t => {
         const sideClass = String(t.side || '').includes('BUY') ? 'profit' : 'warn';
         const quote = tradeQuoteAmount(t);
         const tr = document.createElement('tr');
