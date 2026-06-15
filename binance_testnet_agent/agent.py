@@ -115,6 +115,7 @@ class TradingAgent:
         if trailing_decision is not None:
             decision = trailing_decision
         decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
+        self._consolidate_dust()
         merge_result = self._maybe_merge_sell_dust(decision)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
@@ -559,6 +560,23 @@ class TradingAgent:
     @staticmethod
     def _blocked_sell(decision: StrategyDecision, reason: str) -> StrategyDecision:
         return StrategyDecision(Signal.HOLD, reason, decision.reference_price, decision.price)
+
+    def _consolidate_dust(self) -> dict[str, Any] | None:
+        """每个 tick 把卖不掉的碎渣批次并入碎渣账户。
+
+        无论本轮是否下单都执行，把任何低于最小下单数量的零头（含手动卖出留下的）
+        收进碎渣账户。任何异常都被吞掉，不影响主交易循环。
+        """
+        try:
+            min_qty = float(self.client.symbol_filters(self.config.symbol).min_qty)
+            with trading_lock():
+                return self.ledger.consolidate_dust(
+                    min_qty,
+                    self.config.take_profit_pct,
+                    self.config.trading_fee_rate,
+                )
+        except BinanceAPIError:
+            return None
 
     def _maybe_merge_sell_dust(self, decision: StrategyDecision) -> dict[str, Any] | None:
         """空闲 tick 时自动把达标的碎屑批次合并卖出，避免它们因低于最小下单额永远卖不掉。

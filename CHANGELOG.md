@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.1.1 - 2026-06-15
+
+- Added a dust-consolidation account. Partial sells rounded to the Binance step size often leave a remainder below the minimum order quantity (`MIN_QTY`, ~0.00001 BTC) that can never be sold on its own and keeps the lot open forever. Any open lot whose remaining quantity is below `MIN_QTY` is now folded into a single `dust` lot that accumulates quantity-weighted blended cost and buy fees and recomputes its target price; the original lot is marked closed (noted as folded into dust) so it shows up in closed batches.
+- The dust lot is a normal open lot: once it grows past the minimum quantity and notional (~5 USDT) and the price covers its blended cost plus fees, it is sold by the normal strategy or by merge-sell.
+- The agent sweeps dust every tick; manual sells and merge-sells also sweep immediately after a fill. Lots with an active limit-sell order are skipped to avoid conflicts.
+- Added a `consolidate_dust` ledger method and 4 unit tests. Full suite passes.
+
 ## v2.1.0 - 2026-06-15
 
 - Added a hard loss-protection guard to every manual sell path. Single-lot market sell, single-lot limit sell, one-click market sell, and one-click limit sell now reject any order priced below the lot break-even (cost plus both-side fees). Market sells add a slippage buffer; limit sells use the exact break-even since the fill price is guaranteed.

@@ -302,6 +302,101 @@ class PositionLedger:
 
         return self.update_lots(mutate)
 
+    def consolidate_dust(
+        self,
+        min_qty: float,
+        take_profit_pct: float,
+        trading_fee_rate: float,
+        dust_level: str = "dust",
+    ) -> dict[str, Any]:
+        """把卖不掉的碎渣批次合并进一个独立的「碎渣账户」批次。
+
+        任何剩余数量低于币安最小下单数量 ``min_qty`` 的未平批次（部分卖出留下的零头、
+        或本就过小的批次）都会被并入同一个 ``level="dust"`` 的批次，按数量加权累计综合
+        成本与买入手续费，并重算目标卖价。原批次记为已平仓并注明已并入碎渣账户。
+
+        碎渣账户本身是一个正常的未平批次：等它累计到可盈利、且达到最小下单数量与最小
+        下单额后，会被普通策略或合并卖出正常卖出。
+
+        持有未成交限价卖单的批次会被跳过，避免和挂单冲突。
+        """
+        if min_qty <= 0:
+            return {"moved": 0, "moved_ids": [], "dust": None}
+
+        def mutate(lots: list[dict[str, Any]]) -> dict[str, Any]:
+            dust = next(
+                (lot for lot in lots if str(lot.get("level")) == dust_level and lot.get("status") == "open"),
+                None,
+            )
+            moved = 0
+            moved_ids: list[Any] = []
+            for lot in lots:
+                if lot is dust or str(lot.get("level")) == dust_level:
+                    continue
+                if lot.get("status") != "open":
+                    continue
+                if lot.get("pending_limit_sell_order_id"):
+                    continue
+                qty = float(lot.get("remaining_quantity", 0) or 0)
+                if qty <= 0 or qty >= min_qty:
+                    continue
+
+                buy_price = float(lot.get("buy_price", 0) or 0)
+                original_quantity = float(lot.get("quantity") or qty)
+                crumb_cost = buy_price * qty
+                crumb_fee = float(lot.get("buy_fee_quote", 0) or 0) * (
+                    qty / original_quantity if original_quantity > 0 else 1.0
+                )
+                symbol = lot.get("symbol", "")
+
+                if dust is None:
+                    dust = {
+                        "id": f"{dust_level}-{symbol}",
+                        "symbol": symbol,
+                        "level": dust_level,
+                        "status": "open",
+                        "quantity": 0.0,
+                        "remaining_quantity": 0.0,
+                        "buy_quote": 0.0,
+                        "buy_fee_quote": 0.0,
+                        "buy_price": 0.0,
+                        "target_price": 0.0,
+                        "opened_at": _now(),
+                        "auto_sell": True,
+                        "lifecycle_state": "OPEN",
+                        "lifecycle_note": "碎渣合并账户，等待累计到可卖出",
+                        "dust_sources": [],
+                    }
+                    lots.append(dust)
+
+                new_qty = float(dust["quantity"]) + qty
+                new_cost = float(dust["buy_quote"]) + crumb_cost
+                new_fee = float(dust["buy_fee_quote"]) + crumb_fee
+                dust["quantity"] = new_qty
+                dust["remaining_quantity"] = new_qty
+                dust["buy_quote"] = new_cost
+                dust["buy_fee_quote"] = new_fee
+                dust["buy_price"] = new_cost / new_qty if new_qty > 0 else 0.0
+                dust["target_price"] = dust["buy_price"] * (1 + max(0.0, take_profit_pct) + trading_fee_rate * 2)
+                dust["lifecycle_state"] = "OPEN"
+                dust["lifecycle_note"] = "碎渣合并账户，等待累计到可卖出"
+                dust.setdefault("dust_sources", []).append(
+                    {"id": lot.get("id"), "level": lot.get("level"), "quantity": qty}
+                )
+
+                lot["remaining_quantity"] = 0.0
+                lot["status"] = "closed"
+                lot["closed_at"] = _now()
+                lot["lifecycle_state"] = "CLOSED"
+                lot["lifecycle_note"] = "剩余碎渣并入碎渣账户"
+                lot["folded_into_dust"] = True
+                moved += 1
+                moved_ids.append(lot.get("id"))
+
+            return {"moved": moved, "moved_ids": moved_ids, "dust": dict(dust) if dust else None}
+
+        return self.update_lots(mutate)
+
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

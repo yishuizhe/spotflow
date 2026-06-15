@@ -3067,6 +3067,11 @@ class Dashboard:
         except BinanceAPIError as exc:
             return {"error": self._friendly_balance_error(exc, self.config.base_asset, base_free, base_locked)}
         updated = self.ledger.close_lot(lot_id, order, self.config.trading_fee_rate)
+        self.ledger.consolidate_dust(
+            float(filters.min_qty),
+            self.config.take_profit_pct,
+            self.config.trading_fee_rate,
+        )
         self._record_manual_trade(
             "MANUAL_SELL",
             _order_quote_qty(order, fallback_price=price) or float(rounded_qty) * price,
@@ -3087,6 +3092,14 @@ class Dashboard:
             require_dust=True,
         )
         if result.get("merged"):
+            try:
+                self.ledger.consolidate_dust(
+                    float(self.client.symbol_filters(self.config.symbol).min_qty),
+                    self.config.take_profit_pct,
+                    self.config.trading_fee_rate,
+                )
+            except BinanceAPIError:
+                pass
             self._record_manual_trade(
                 "MERGE_SELL",
                 float(result.get("proceeds", 0) or 0),
