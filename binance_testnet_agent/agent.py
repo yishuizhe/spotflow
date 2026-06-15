@@ -22,6 +22,7 @@ from .config import AgentConfig
 from .defensive import DefensiveMode, enrich_lots_with_defensive_targets, evaluate_defensive_mode
 from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .ledger import PositionLedger
+from .merge_sell import merge_sell_ready_lots
 from .portfolio import metrics_asdict, portfolio_metrics
 from .risk import evaluate_buy_risk
 from .sizing import PositionSizing, position_sizing
@@ -114,6 +115,7 @@ class TradingAgent:
         if trailing_decision is not None:
             decision = trailing_decision
         decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
+        merge_result = self._maybe_merge_sell_dust(decision)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
         self.audit.record(
@@ -136,6 +138,7 @@ class TradingAgent:
             "execute_trades": self._execute_trades_enabled(),
             "order_result": order_result,
             "lot_update": lot_update,
+            "merge_result": merge_result,
             "risk": risk,
             "position_sizing": asdict(sizing),
             "defensive_mode": defensive.to_dict(),
@@ -179,6 +182,7 @@ class TradingAgent:
             "execute_trades": result["execute_trades"],
             "order_result": result["order_result"],
             "lot_update": result.get("lot_update"),
+            "merge_result": result.get("merge_result"),
             "open_lots": len(self.ledger.open_lots()),
             "realized_pnl": self.ledger.realized_pnl(self.config.trading_fee_rate),
             "unrealized_lot_pnl": self.ledger.unrealized_pnl(snapshot["price"]),
@@ -555,6 +559,22 @@ class TradingAgent:
     @staticmethod
     def _blocked_sell(decision: StrategyDecision, reason: str) -> StrategyDecision:
         return StrategyDecision(Signal.HOLD, reason, decision.reference_price, decision.price)
+
+    def _maybe_merge_sell_dust(self, decision: StrategyDecision) -> dict[str, Any] | None:
+        """空闲 tick 时自动把达标的碎屑批次合并卖出，避免它们因低于最小下单额永远卖不掉。
+
+        只在交易开关开启、且本轮主决策不是卖出时触发，避免同一 tick 重复卖出或抢占余额。
+        任何异常都被吞掉，绝不影响主交易循环。
+        """
+        if decision.signal == Signal.SELL:
+            return None
+        if not self._execute_trades_enabled():
+            return None
+        try:
+            with trading_lock():
+                return merge_sell_ready_lots(self.client, self.ledger, self.config, require_dust=True)
+        except BinanceAPIError as exc:
+            return {"merged": False, "error": str(exc)}
 
     def _execute_with_final_guard(
         self,

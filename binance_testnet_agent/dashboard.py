@@ -22,6 +22,7 @@ from .defensive import enrich_lot_with_defensive_target, enrich_lots_with_defens
 from .defensive_scalp import DefensiveScalpStrategy, is_scalp_lot
 from .ledger import PositionLedger
 from .local_backtest import BacktestConfig, run_scenarios, run_backtest
+from .merge_sell import lot_breakeven_floor, merge_sell_ready_lots
 from .portfolio import metrics_asdict, portfolio_metrics, reset_baseline
 from .sizing import position_sizing
 from .storage import SQLiteJsonListStore
@@ -559,6 +560,7 @@ HTML = """<!doctype html>
           <button class="secondary-button" id="bulkAutoOff">一键关闭自动卖</button>
           <button class="secondary-button" id="bulkMarketSell">一键市价卖</button>
           <button class="secondary-button" id="bulkLimitSell">一键限价卖</button>
+          <button class="secondary-button" id="mergeSellDust">合并卖碎屑</button>
         </div>
       </div>
       <div class="table-scroll">
@@ -1591,6 +1593,7 @@ HTML = """<!doctype html>
     document.getElementById('bulkAutoOff').addEventListener('click', () => bulkAutoSell(false));
     document.getElementById('bulkMarketSell').addEventListener('click', () => bulkMarketSell());
     document.getElementById('bulkLimitSell').addEventListener('click', () => bulkLimitSell());
+    document.getElementById('mergeSellDust').addEventListener('click', () => mergeSellDust());
     document.getElementById('bulkCancelOrders').addEventListener('click', () => bulkCancelPendingOrders());
     document.getElementById('runBacktest').addEventListener('click', async () => {
       document.getElementById('backtestStatus').textContent = '回测运行中...';
@@ -1766,6 +1769,23 @@ HTML = """<!doctype html>
       } else {
         showNotice(summary);
       }
+    }
+    async function mergeSellDust() {
+      const password = await uiPrompt('输入交易开关密码以合并卖出达标的碎屑批次', '', 'password');
+      if (!password) return;
+      const confirmed = await uiConfirm('确认把多个达标但单笔金额低于币安最小下单额的碎屑批次，合并成一笔市价卖出？每个批次都已覆盖保本价，这是实盘下单，无法撤回。');
+      if (!confirmed) return;
+      let result;
+      try {
+        result = await apiGet('/api/manual/merge-sell', {}, password);
+      } catch (err) {
+        await uiAlert(err.message || String(err), '合并卖出失败');
+        return;
+      }
+      await refresh();
+      if (result.error) return uiAlert(result.error, '合并卖出失败');
+      if (!result.merged) return uiAlert(result.reason || '当前没有需要合并的碎屑批次。', '未执行合并');
+      showNotice(`合并卖出完成：平掉 ${result.lots_closed || 0} 个碎屑批次，成交金额约 ${Number(result.proceeds || 0).toFixed(2)} ${'USDT'}，均价 ${Number(result.avg_price || 0).toFixed(2)}。`);
     }
     async function cancelPendingOrder(orderId) {
       const password = await uiPrompt('输入交易开关密码以取消限价挂单', '', 'password');
@@ -2186,6 +2206,7 @@ HTML = """<!doctype html>
         bulkAutoOff: '一次暂停脚本为所有未平批次提交新的自动卖单；已经在币安挂出的限价卖单需要单独取消。',
         bulkMarketSell: '按市价卖出全部未平批次，属于不可撤回的真实交易。',
         bulkLimitSell: '按每个批次当前预计卖价分别提交限价单。',
+        mergeSellDust: '把多个达标但单笔低于币安最小下单额的碎屑批次，合并成一笔市价卖出；每个批次都已覆盖保本价，不会亏本卖。',
         settingsReload: '放弃页面内尚未保存的修改，重新读取服务器配置。',
         settingsSave: '校验并保存全部系统设置，完成后会显示明确结果。',
         commentSubmit: '发布评论，并在启用弹幕时显示在页面上方。',
@@ -3031,6 +3052,14 @@ class Dashboard:
                 )
             }
         price = self.client.ticker_price(self.config.symbol)
+        floor = lot_breakeven_floor(lot, self.config.trading_fee_rate, include_slippage=True)
+        if floor > 0 and price < floor:
+            return {
+                "error": (
+                    f"亏本保护：当前价 {price:.2f} 低于该批次保本价 {floor:.2f}"
+                    "（成本 + 双边手续费 + 滑点缓冲），已拒绝市价卖出。"
+                )
+            }
         if rounded_qty * Decimal(str(price)) < filters.min_notional:
             return {"error": f"quantity below minNotional {filters.min_notional}"}
         try:
@@ -3045,6 +3074,26 @@ class Dashboard:
             updated,
         )
         return {"order": order, "lot": updated}
+
+    def merge_sell_dust(self) -> dict[str, Any]:
+        """把多个达标但单笔低于币安最小下单额的碎屑批次合并成一笔市价卖出。
+
+        每个纳入的批次都已独立覆盖保本价和目标价，合并卖出对每个批次都不会亏本。
+        """
+        result = merge_sell_ready_lots(
+            self.client,
+            self.ledger,
+            self.config,
+            require_dust=True,
+        )
+        if result.get("merged"):
+            self._record_manual_trade(
+                "MERGE_SELL",
+                float(result.get("proceeds", 0) or 0),
+                result.get("order", {}),
+                {"lots_closed": result.get("lots_closed", 0)},
+            )
+        return result
 
     @staticmethod
     def _friendly_balance_error(exc: BinanceAPIError, asset: str, free: float, locked: float) -> str:
@@ -3083,6 +3132,15 @@ class Dashboard:
             return {"error": "lot has no remaining quantity"}
         filters = self.client.symbol_filters(self.config.symbol)
         price = self.client.round_price(Decimal(str(limit_price)), filters)
+        floor = lot_breakeven_floor(lot, self.config.trading_fee_rate, include_slippage=False)
+        if floor > 0 and float(price) < floor:
+            self.clear_lot_pending_sell(lot_id)
+            return {
+                "error": (
+                    f"亏本保护：限价 {float(price):.2f} 低于该批次保本价 {floor:.2f}"
+                    "（成本 + 双边手续费），已拒绝挂单。"
+                )
+            }
         account = self.client.account()
         balances = {item["asset"]: item for item in account.get("balances", [])}
         base_free, base_locked, _base_total = _balance_parts(balances, self.config.base_asset)
@@ -3717,6 +3775,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 "/api/strategy/take-profit",
                 "/api/manual/buy",
                 "/api/manual/sell",
+                "/api/manual/merge-sell",
                 "/api/manual/auto-sell",
                 "/api/manual/auto-sell-all",
                 "/api/manual/limit-buy",
@@ -3796,6 +3855,12 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
                 try:
                     with trading_lock():
                         result = dashboard.manual_sell(str(payload.get("lot_id", "")))
+                except (BinanceAPIError, ValueError) as exc:
+                    result = {"error": str(exc)}
+            elif path == "/api/manual/merge-sell":
+                try:
+                    with trading_lock():
+                        result = dashboard.merge_sell_dust()
                 except (BinanceAPIError, ValueError) as exc:
                     result = {"error": str(exc)}
             elif path == "/api/manual/auto-sell":

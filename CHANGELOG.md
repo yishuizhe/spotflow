@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1.0 - 2026-06-15
+
+- Added a hard loss-protection guard to every manual sell path. Single-lot market sell, single-lot limit sell, one-click market sell, and one-click limit sell now reject any order priced below the lot break-even (cost plus both-side fees). Market sells add a slippage buffer; limit sells use the exact break-even since the fill price is guaranteed.
+- Added merge-sell for dust lots. Multiple ready lots whose individual notional is below the Binance minimum (`MIN_NOTIONAL`, ~5 USDT) are combined into a single market order, then the fill is allocated back to each lot's ledger entry by remaining quantity in a waterfall so no included lot closes at a loss.
+- Added a `合并卖碎屑` button to the open-lots toolbar in the dashboard, gated by the trading-toggle password with a confirmation prompt.
+- The trading agent now auto-clears ready dust lots on idle ticks (only when trades are enabled and the main decision is not itself a sell); any error is swallowed so the core loop is never affected.
+- Added a `merge_sell.py` module with a shared break-even helper aligned with the agent sell gate, plus 6 unit tests covering loss rejection, dust merging, no-dust skip, and not touching losing lots. Full suite passes.
+
 ## v2.0.2 - 2026-06-14
 
 - Rebalanced the account/strategy and recent-order desktop columns with denser status rows and full-page order table height distribution.
