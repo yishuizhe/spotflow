@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.2 - 2026-06-19
+
+- Fixed a self-locking deadlock in the portfolio drawdown circuit breaker: once account drawdown reached 12%, `layered_risk` set `order_multiplier` to 0 for every strategy, including the defensive scalp and dip-buy strategies that exist specifically to average down during exactly this kind of drawdown. With every open lot underwater, no sell could realize profit to reduce the drawdown either, so the agent stayed completely frozen (observed: 30+ hours, 3500+ decision cycles, zero buys or sells).
+- `LayeredRisk` now carries `limited_strategies`/`limited_order_multiplier`. When the 12% drawdown breaker fires, grid and swing additions stay fully blocked, but `scalp` and `dip` keep a 0.15x order-size allowance so the agent can still average down. The daily-loss-limit and price-break (>8%) circuit breakers remain a full, unconditional pause — those are real risk events, not deadlock conditions.
+- Added unit tests in `tests/test_adaptive.py` covering both the carve-out (drawdown breaker) and the no-exception case (daily-loss breaker).
+
 ## v2.1.1 - 2026-06-15
 
 - Added a dust-consolidation account. Partial sells rounded to the Binance step size often leave a remainder below the minimum order quantity (`MIN_QTY`, ~0.00001 BTC) that can never be sold on its own and keeps the lot open forever. Any open lot whose remaining quantity is below `MIN_QTY` is now folded into a single `dust` lot that accumulates quantity-weighted blended cost and buy fees and recomputes its target price; the original lot is marked closed (noted as folded into dust) so it shows up in closed batches.

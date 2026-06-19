@@ -44,6 +44,8 @@ class LayeredRisk:
     order_multiplier: float
     layer: str
     reason: str
+    limited_strategies: tuple[str, ...] = ()
+    limited_order_multiplier: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -138,7 +140,15 @@ def layered_risk(
     if daily_loss_quote <= -abs(max_daily_loss_quote):
         return LayeredRisk(False, True, 0.0, "组合止损", "当日亏损达到上限，暂停全部自动买入")
     if account_drawdown_pct >= 0.12:
-        return LayeredRisk(False, True, 0.0, "组合止损", "账户回撤达到 12%，暂停全部自动买入")
+        return LayeredRisk(
+            False,
+            True,
+            0.0,
+            "组合止损",
+            "账户回撤达到 12%，暂停网格/波段新增仓位；防守剥头皮与抄底保留小额度用于摊低成本",
+            limited_strategies=("scalp", "dip"),
+            limited_order_multiplier=0.15,
+        )
     if price_break_pct >= 0.08:
         return LayeredRisk(False, False, 0.0, "趋势破位", "价格跌破大周期参考超过 8%，等待重新企稳")
     multiplier = 1.0
@@ -179,6 +189,27 @@ def allocate_decision(
     }[strategy]
     used = strategy_positions.get(strategy, 0.0)
     if not risk.allow_buy:
+        if strategy in risk.limited_strategies and risk.limited_order_multiplier > 0:
+            remaining = max(0.0, cap - used)
+            quote_size = min(decision.order_quote_size * risk.limited_order_multiplier, remaining)
+            if quote_size < min_order_quote:
+                return StrategyDecision(
+                    Signal.HOLD,
+                    f"{risk.layer}限额：{strategy} 剩余额度或动态单笔低于最小下单额",
+                    decision.reference_price,
+                    decision.price,
+                )
+            return StrategyDecision(
+                decision.signal,
+                f"{decision.reason}；{risk.layer}限额放行 {strategy} ×{risk.limited_order_multiplier:.2f}",
+                decision.reference_price,
+                decision.price,
+                quote_size,
+                decision.level,
+                decision.lot_id,
+                decision.quantity,
+                decision.target_price,
+            )
         return StrategyDecision(Signal.HOLD, risk.reason, decision.reference_price, decision.price)
     remaining = max(0.0, cap - used)
     quote_size = min(decision.order_quote_size * plan.order_multiplier * risk.order_multiplier, remaining)
