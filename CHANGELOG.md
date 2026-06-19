@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.3 - 2026-06-19
+
+- Fixed a second self-locking deadlock, this time on the sell side: the grid strategy always picks the single open lot with the *lowest* target price to sell each cycle (`min(profitable_lots, key=_lot_target_price)`). If that lot happens to be a dust lot (remaining quantity worth less than Binance's minNotional), the order gets skipped every cycle — and `_maybe_merge_sell_dust` was gated off whenever the cycle's decision was a SELL, regardless of whether that SELL actually filled. So a single unsellable dust lot with the lowest target price would permanently block both itself and every other lot that had already reached its own target, since merge-sell (the only mechanism that can combine dust with normal lots into one order above minNotional) never got a chance to run. Diagnosed and reported with exact log evidence by a user of the project — thank you.
+- `_maybe_merge_sell_dust` now takes the actual `order_result` of the cycle's chosen decision. It only skips merge-sell when a SELL genuinely filled; if the chosen SELL was skipped (minNotional, minQty, balance mismatch, etc.), merge-sell still runs in the same cycle and can combine the stuck dust lot with any other ready lots into one order.
+- Added two regression tests in `tests/test_agent_orders.py`: one reproducing the exact deadlock (skipped dust SELL unblocks merge-sell) and one confirming merge-sell is still correctly skipped when the chosen SELL actually fills.
+
 ## v2.1.2 - 2026-06-19
 
 - Fixed a self-locking deadlock in the portfolio drawdown circuit breaker: once account drawdown reached 12%, `layered_risk` set `order_multiplier` to 0 for every strategy, including the defensive scalp and dip-buy strategies that exist specifically to average down during exactly this kind of drawdown. With every open lot underwater, no sell could realize profit to reduce the drawdown either, so the agent stayed completely frozen (observed: 30+ hours, 3500+ decision cycles, zero buys or sells).

@@ -116,7 +116,7 @@ class TradingAgent:
             decision = trailing_decision
         decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
         self._consolidate_dust()
-        merge_result = self._maybe_merge_sell_dust(decision)
+        merge_result = self._maybe_merge_sell_dust(decision, order_result)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
         self.audit.record(
@@ -578,13 +578,18 @@ class TradingAgent:
         except BinanceAPIError:
             return None
 
-    def _maybe_merge_sell_dust(self, decision: StrategyDecision) -> dict[str, Any] | None:
+    def _maybe_merge_sell_dust(
+        self, decision: StrategyDecision, order_result: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """空闲 tick 时自动把达标的碎屑批次合并卖出，避免它们因低于最小下单额永远卖不掉。
 
-        只在交易开关开启、且本轮主决策不是卖出时触发，避免同一 tick 重复卖出或抢占余额。
+        只在交易开关开启、且本轮没有真正成交一笔卖单时触发，避免重复卖出或抢占余额。
+        如果本轮选中的卖出批次因低于最小下单额/数量被跳过（order_result 带 skipped），
+        说明那笔单子根本没有真正下出去，这里仍然要继续尝试合并卖渣，否则那个永远卖不掉的
+        碎渣批次会一直占着"目标价最低"的位置，把其它已达标的正常批次永久卡在后面排不上队。
         任何异常都被吞掉，绝不影响主交易循环。
         """
-        if decision.signal == Signal.SELL:
+        if decision.signal == Signal.SELL and order_result and not order_result.get("skipped"):
             return None
         if not self._execute_trades_enabled():
             return None
