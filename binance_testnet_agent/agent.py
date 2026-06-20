@@ -117,6 +117,7 @@ class TradingAgent:
         decision, order_result, lot_update = self._execute_with_final_guard(snapshot, decision)
         self._consolidate_dust()
         merge_result = self._maybe_merge_sell_dust(decision, order_result)
+        self._record_merge_sell_trade(snapshot, merge_result)
         self._update_state(state, decision, order_result)
         self._record_trade(snapshot, decision, order_result)
         self.audit.record(
@@ -754,6 +755,37 @@ class TradingAgent:
             "reference_price": decision.reference_price,
             "target_quote_size": decision.order_quote_size,
             "order": order_result,
+        }
+        with self.trades_path.open("a") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+    def _record_merge_sell_trade(
+        self,
+        snapshot: MarketSnapshot,
+        merge_result: dict[str, Any] | None,
+    ) -> None:
+        """合并卖碎屑（自动 tick 触发）成交后，补一条交易记录。
+
+        merge_sell_ready_lots 只负责下单和更新账本，本身不写交易日志；手动点击仪表盘的
+        「合并卖碎屑」按钮那条路径会调用 _record_manual_trade 记一笔，但自动 agent 这边的
+        once() 一直没有对应调用，导致自动触发的合并卖出永远不会出现在「最近实盘订单」里。
+        """
+        if not merge_result or not merge_result.get("merged"):
+            return
+        order_result = merge_result.get("order")
+        if not order_result:
+            return
+        self.trades_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "symbol": snapshot.symbol,
+            "side": "MERGE_SELL",
+            "level": "merge-sell-dust",
+            "reason": "auto agent merged dust lots above minNotional",
+            "price": snapshot.price,
+            "target_quote_size": merge_result.get("proceeds", 0),
+            "order": order_result,
+            "lots_closed": merge_result.get("lots_closed", 0),
         }
         with self.trades_path.open("a") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")

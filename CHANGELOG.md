@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.4 - 2026-06-20
+
+- Fixed automatic merge-sell trades never showing up in the trade log / dashboard "recent orders": `merge_sell_ready_lots` places the order and updates the ledger but never wrote to `trades_<symbol>.jsonl` itself, and the auto-agent's `once()` loop only ever called `_record_trade()` with the original (non-merge) decision. The dashboard's manual "merge sell dust" button already recorded correctly via `_record_manual_trade`; the automatic tick-triggered path never had an equivalent call. This bug was latent until v2.1.3 actually unblocked automatic merge-sell from firing — at which point the merges started executing for real but stayed invisible in the trade history.
+- Added `TradingAgent._record_merge_sell_trade`, called from `once()` right after `_maybe_merge_sell_dust`, so a successful automatic merge sell now writes a `MERGE_SELL` record with the order, proceeds, and number of lots closed.
+- Added 2 unit tests covering the recorded and not-recorded cases.
+
 ## v2.1.3 - 2026-06-19
 
 - Fixed a second self-locking deadlock, this time on the sell side: the grid strategy always picks the single open lot with the *lowest* target price to sell each cycle (`min(profitable_lots, key=_lot_target_price)`). If that lot happens to be a dust lot (remaining quantity worth less than Binance's minNotional), the order gets skipped every cycle — and `_maybe_merge_sell_dust` was gated off whenever the cycle's decision was a SELL, regardless of whether that SELL actually filled. So a single unsellable dust lot with the lowest target price would permanently block both itself and every other lot that had already reached its own target, since merge-sell (the only mechanism that can combine dust with normal lots into one order above minNotional) never got a chance to run. Diagnosed and reported with exact log evidence by a user of the project — thank you.

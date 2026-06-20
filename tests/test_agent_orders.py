@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from decimal import Decimal, ROUND_DOWN
@@ -334,6 +335,54 @@ class AgentOrderTest(unittest.TestCase):
 
                 self.assertIsNone(merge_result)
                 self.assertEqual(agent.client.market_sells, [])
+            finally:
+                os.chdir(old)
+
+    def test_auto_merge_sell_is_written_to_trades_log(self) -> None:
+        """合并卖碎屑（自动 tick 触发）成交后，必须出现在 trades.jsonl 里，
+        否则仪表盘「最近实盘订单」永远看不到这笔自动合并卖出——这正是用户反馈的 bug。
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path.cwd()
+            try:
+                import os
+
+                os.chdir(tmp)
+                agent = TradingAgent(AgentConfig(api_key="key", api_secret="secret", execute_trades=True))
+                snapshot = MarketSnapshot("BTCUSDT", 64000.0, [64000.0], 0.0, 100.0)
+                merge_result = {
+                    "merged": True,
+                    "order": {"orderId": 999, "status": "FILLED"},
+                    "proceeds": 9.6,
+                    "lots_closed": 2,
+                }
+
+                agent._record_merge_sell_trade(snapshot, merge_result)
+
+                self.assertTrue(agent.trades_path.exists())
+                lines = agent.trades_path.read_text().strip().splitlines()
+                self.assertEqual(len(lines), 1)
+                record = json.loads(lines[0])
+                self.assertEqual(record["side"], "MERGE_SELL")
+                self.assertEqual(record["order"]["orderId"], 999)
+                self.assertEqual(record["lots_closed"], 2)
+            finally:
+                os.chdir(old)
+
+    def test_no_trade_recorded_when_merge_sell_does_not_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path.cwd()
+            try:
+                import os
+
+                os.chdir(tmp)
+                agent = TradingAgent(AgentConfig(api_key="key", api_secret="secret", execute_trades=True))
+                snapshot = MarketSnapshot("BTCUSDT", 64000.0, [64000.0], 0.0, 100.0)
+
+                agent._record_merge_sell_trade(snapshot, {"merged": False, "reason": "没有达到保本/目标价且可自动卖出的批次"})
+                agent._record_merge_sell_trade(snapshot, None)
+
+                self.assertFalse(agent.trades_path.exists())
             finally:
                 os.chdir(old)
 
