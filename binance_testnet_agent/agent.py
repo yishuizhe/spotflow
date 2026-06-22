@@ -74,7 +74,7 @@ class TradingAgent:
         scalp_lots = [lot for lot in open_lots if is_scalp_lot(lot)]
         defensive = self._defensive(snapshot, sizing, grid_lots)
         strategy = self._strategy_for_sizing(sizing, defensive)
-        grid_decision = strategy.decide(snapshot, state, self._lots_for_strategy(grid_lots))
+        grid_decision = strategy.decide(snapshot, state, self._lots_for_strategy(self._grid_strategy_lots(grid_lots)))
         trend_state = self._trend_state(snapshot, sizing, grid_lots, swing_lots)
         trend_guard = self._trend_guard()
         grid_decision = trend_guard.apply_to_grid(grid_decision, trend_state)
@@ -381,6 +381,17 @@ class TradingAgent:
             floating_loss_trigger_quote=self.config.defensive_floating_loss_quote,
             recent_drawdown_trigger_pct=self.config.defensive_recent_drawdown_pct,
         )
+
+    @staticmethod
+    def _grid_strategy_lots(grid_lots: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """交给网格策略做逐笔买卖判断的批次,排除碎渣账户(level=dust)。
+
+        碎渣账户是累计桶,不是真实网格档位:它的剩余数量常低于币安最小下单数量,单笔卖
+        会被取整成 0 拒单,而策略每轮都会优先把它当成"已达目标价、该卖"的批次返回,
+        导致 agent 卡死在一个永远成交不了的卖单上,其它买卖全部停摆。碎渣只由「合并卖
+        碎屑」在累计到最小下单额且盈利后整体卖出,不参与逐笔策略。
+        """
+        return [lot for lot in grid_lots if str(lot.get("level")) != "dust"]
 
     def _lots_for_strategy(self, open_lots: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return enrich_lots_with_defensive_targets(

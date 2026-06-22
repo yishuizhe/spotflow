@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.5 - 2026-06-22
+
+- Fixed the auto-agent freezing on an unsellable dust lot and halting all trading. A `dust` consolidation lot whose remaining quantity is below the exchange minimum (rounds to 0) but whose target price sits below the market price is picked by the grid strategy as a "ready to sell" lot every tick; the order is rejected as below minQty and skipped, and because the strategy returns that sell decision before evaluating anything else, the agent stops buying or selling entirely. This also froze the dashboard "recent orders" feed, since skipped orders are never written to the trade log.
+- The dust lot (`level=dust`) is now excluded from the per-lot grid sell candidates via `TradingAgent._grid_strategy_lots`. Dust is only ever sold by the merge-sell path once it accumulates above the minimum notional and is profitable; it no longer participates in per-lot grid decisions.
+- Added 2 regression tests (a dust crumb triggers a sell decision that would jam; the filter prevents it). Full suite passes.
+
 ## v2.1.4 - 2026-06-20
 
 - Fixed automatic merge-sell trades never showing up in the trade log / dashboard "recent orders": `merge_sell_ready_lots` places the order and updates the ledger but never wrote to `trades_<symbol>.jsonl` itself, and the auto-agent's `once()` loop only ever called `_record_trade()` with the original (non-merge) decision. The dashboard's manual "merge sell dust" button already recorded correctly via `_record_manual_trade`; the automatic tick-triggered path never had an equivalent call. This bug was latent until v2.1.3 actually unblocked automatic merge-sell from firing — at which point the merges started executing for real but stayed invisible in the trade history.
