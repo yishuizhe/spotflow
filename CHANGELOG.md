@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1.8 - 2026-06-23
+
+- Diagnosed (not a code bug, a UX trap): a custom take-profit percentage set via the dashboard's settings modal silently never persisted, because saving requires `TRADING_TOGGLE_PASSWORD` — a separate password from the dashboard login password — and the old prompt text ("输入当前交易开关密码以保存设置") didn't make that distinction obvious. Entering the login password instead fails the request with `invalid trading password`, and the only feedback was an auto-dismissing toast that was easy to miss, so the take-profit field silently kept reverting to whatever was last actually saved.
+- The password prompt now explicitly says this is not the login password. A wrong trading password on settings save now also pops a blocking confirmation dialog in Chinese explaining that nothing was saved and which password is needed, so it can no longer go unnoticed.
+
 ## v2.1.7 - 2026-06-23
 
 - Show the running app version on the dashboard page itself, next to the "SpotFlow" title, sourced from `binance_testnet_agent.__version__` (previously defined but unused, and stale at `2.0.2`). The HTML title bar now always reflects the actually-deployed version, so it's obvious from the page alone whether a given deploy is current.

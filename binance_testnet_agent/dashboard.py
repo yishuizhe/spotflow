@@ -2042,7 +2042,7 @@ HTML = """<!doctype html>
       }
     });
     document.getElementById('settingsSave').addEventListener('click', async () => {
-      const password = await uiPrompt('输入当前交易开关密码以保存设置', '', 'password');
+      const password = await uiPrompt('输入交易开关密码以保存设置（注意：不是登录密码，是开启/关闭自动交易用的那个密码）', '', 'password');
       if (!password) return;
       const saveButton = document.getElementById('settingsSave');
       saveButton.disabled = true;
@@ -2069,6 +2069,9 @@ HTML = """<!doctype html>
         const message = err.message || String(err);
         setSettingsStatus(message, 'error');
         showNotice(`设置保存失败：${message}`, 'error');
+        if (message.includes('invalid trading password')) {
+          await uiAlert('密码不对，本次设置完全没有保存，所有改动都没生效！这里要输的是交易开关密码，不是登录密码，两个不一样。', '保存失败');
+        }
       } finally {
         saveButton.disabled = false;
         saveButton.textContent = '保存设置';
