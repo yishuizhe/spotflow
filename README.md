@@ -2,7 +2,7 @@
 
 币安现货量化交易看板与自动交易 Agent。
 
-当前版本：`v2.1.5`
+当前版本：`v2.1.6`
 
 一个默认连接币安现货实盘、但示例配置交易开关默认关闭的小本金网格交易 agent。首次部署或分享给他人学习时建议保持：
 
@@ -511,6 +511,12 @@ DEFENSIVE_AGED_LOT_PROFIT_PCT_2=0.0015
 - 自动 agent 每个 tick 都会清扫一次；手动卖出、合并卖出成交后也会立即清扫。
 
 ## 更新日志
+
+### v2.1.6 - 2026-06-23
+
+- 修复手工买入时自定义的目标利润百分比被静默覆盖的问题：所有持仓批次（包括 `manual-entry`/`manual-limit-buy` 人工批次）都会经过 `enrich_lot_with_defensive_target` 重新计算一遍目标价，这个函数用的是**全局** `take_profit_pct`，并且会把批次保存的 `target_price` 钳到 `min(已保存目标, 按全局比例算出的目标)`。如果用户手工设置的利润百分比高于全局默认值，网格策略选卖批次、以及仪表盘展示用的 `effective_target_price` 就会被悄悄改回更低的全局默认目标，用户自定义的比例完全不起作用。
+- `enrich_lot_with_defensive_target` 现在对 `manual-*` 批次特殊处理：直接原样返回批次自己保存的 `target_price` 作为 `effective_target_price`，不再套用全局配置或老仓降目标逻辑，和 `TradingAgent._strategy_sell_floor` 在卖出闸门那一层对人工批次的保护逻辑保持一致。
+- 新增回归测试，验证人工批次设置的高于全局默认的自定义利润目标在 enrich 之后保持不变。
 
 ### v2.1.5 - 2026-06-22
 

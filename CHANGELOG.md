@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.6 - 2026-06-23
+
+- Fixed manual-buy custom take-profit percentages being silently overridden. Every open lot (including `manual-entry`/`manual-limit-buy` lots) was run through `enrich_lot_with_defensive_target`, which recomputes a target from the *global* `take_profit_pct` and clamps the lot's saved `target_price` down to `min(saved_target, defensive_target)`. Whenever a user manually set a custom profit percentage higher than the global default, the resulting `effective_target_price` — the value actually read by the grid strategy's lot selection and shown in the dashboard — silently fell back to the lower global-default target instead of the percentage the user chose.
+- `enrich_lot_with_defensive_target` now special-cases `manual-*` lots: it returns the lot's own saved `target_price` as `effective_target_price` unchanged, with no global-config or lot-aging adjustment, matching how `TradingAgent._strategy_sell_floor` already protects manual lots at the sell-gate level.
+- Added a regression test confirming a manual lot's custom profit target (set above the global default) survives enrichment unchanged.
+
 ## v2.1.5 - 2026-06-22
 
 - Fixed the auto-agent freezing on an unsellable dust lot and halting all trading. A `dust` consolidation lot whose remaining quantity is below the exchange minimum (rounds to 0) but whose target price sits below the market price is picked by the grid strategy as a "ready to sell" lot every tick; the order is rejected as below minQty and skipped, and because the strategy returns that sell decision before evaluating anything else, the agent stops buying or selling entirely. This also froze the dashboard "recent orders" feed, since skipped orders are never written to the trade log.

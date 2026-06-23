@@ -65,6 +65,33 @@ class DefensiveModeTest(unittest.TestCase):
         self.assertTrue(enriched["target_price_adjusted"])
         self.assertEqual(enriched["target_note"], "aged-14d")
 
+    def test_manual_lot_custom_profit_target_is_never_clamped_by_global_or_aging(self) -> None:
+        """人工买入时设置的自定义利润百分比（高于全局默认）必须原样生效，
+        不能被全局 take_profit_pct 或老仓降目标逻辑悄悄改成更低的值。"""
+        lot = {
+            "level": "manual-entry",
+            "buy_price": 100,
+            # 用户手动设置的目标利润 5%，远高于全局默认的 0.6%。
+            "target_price": 105.2,
+            "opened_at": "2026-05-01T00:00:00Z",
+        }
+
+        enriched = enrich_lot_with_defensive_target(
+            lot,
+            enabled=True,
+            target_profit_pct=0.006,
+            trading_fee_rate=0.001,
+            aged_days_1=7,
+            aged_profit_pct_1=0.0035,
+            aged_days_2=14,
+            aged_profit_pct_2=0.0015,
+            now=datetime(2026, 5, 30, tzinfo=timezone.utc),
+        )
+
+        self.assertAlmostEqual(enriched["effective_target_price"], 105.2)
+        self.assertFalse(enriched["target_price_adjusted"])
+        self.assertEqual(enriched["target_note"], "manual")
+
 
 if __name__ == "__main__":
     unittest.main()

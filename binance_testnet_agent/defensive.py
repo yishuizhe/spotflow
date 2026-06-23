@@ -105,6 +105,20 @@ def enrich_lot_with_defensive_target(
     enriched = dict(lot)
     base_target = float(enriched.get("target_price") or 0)
     buy_price = float(enriched.get("buy_price") or 0)
+
+    if str(enriched.get("level", "")).startswith("manual-"):
+        # 人工买入时设置的自定义利润百分比已经折算进 target_price 里，这里绝不能
+        # 再用全局 take_profit_pct 或老仓降目标逻辑去覆盖/钳制它，否则用户自定义的
+        # 利润比例就会被静默改成全局默认值（"自定义利润百分比失效"）。
+        enriched["age_days"] = _lot_age_days(enriched, now)
+        enriched["effective_target_price"] = base_target if base_target > 0 else buy_price
+        enriched["target_profit_pct_effective"] = (
+            (base_target / buy_price) - 1 if base_target > 0 and buy_price > 0 else 0.0
+        )
+        enriched["target_note"] = "manual"
+        enriched["target_price_adjusted"] = False
+        return enriched
+
     age_days = _lot_age_days(enriched, now)
     effective_profit_pct = target_profit_pct
     target_note = "normal"
