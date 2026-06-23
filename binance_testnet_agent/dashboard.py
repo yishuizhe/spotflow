@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from typing import Any
 
+from . import __version__
 from .adaptive import capital_plan, identify_market_regime
 from .audit import DecisionAudit
 from .binance_client import BinanceAPIError, BinanceSpotClient
@@ -409,7 +410,7 @@ HTML = """<!doctype html>
   <main>
     <header>
       <div>
-        <h1>SpotFlow</h1>
+        <h1>SpotFlow <span class="muted" style="font-size:0.5em;font-weight:400" id="appVersion">v__SPOTFLOW_VERSION__</span></h1>
         <div class="muted">现货量化交易看板</div>
       </div>
       <div class="header-actions">
@@ -2273,6 +2274,8 @@ HTML = """<!doctype html>
 </html>
 """
 
+RENDERED_HTML = HTML.replace("__SPOTFLOW_VERSION__", __version__).encode()
+
 
 def _config_setting_fields(config: AgentConfig) -> list[dict[str, Any]]:
     fields: list[dict[str, Any]] = []
@@ -3733,7 +3736,7 @@ def make_handler(dashboard: Dashboard) -> type[BaseHTTPRequestHandler]:
             parsed = urlparse(self.path)
             path = parsed.path
             if path == "/" or path == "/index.html":
-                self._send(200, HTML.encode(), "text/html; charset=utf-8")
+                self._send(200, RENDERED_HTML, "text/html; charset=utf-8")
                 return
             if path == "/favicon.svg":
                 self._send(200, FAVICON_SVG, "image/svg+xml")

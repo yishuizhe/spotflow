@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.7 - 2026-06-23
+
+- Show the running app version on the dashboard page itself, next to the "SpotFlow" title, sourced from `binance_testnet_agent.__version__` (previously defined but unused, and stale at `2.0.2`). The HTML title bar now always reflects the actually-deployed version, so it's obvious from the page alone whether a given deploy is current.
+- `dashboard.HTML` keeps a `__SPOTFLOW_VERSION__` placeholder substituted once at import time into a new `RENDERED_HTML` constant served for `/` and `/index.html`.
+- Bumped `__version__` to `2.1.7` to match this release.
+
 ## v2.1.6 - 2026-06-23
 
 - Fixed manual-buy custom take-profit percentages being silently overridden. Every open lot (including `manual-entry`/`manual-limit-buy` lots) was run through `enrich_lot_with_defensive_target`, which recomputes a target from the *global* `take_profit_pct` and clamps the lot's saved `target_price` down to `min(saved_target, defensive_target)`. Whenever a user manually set a custom profit percentage higher than the global default, the resulting `effective_target_price` — the value actually read by the grid strategy's lot selection and shown in the dashboard — silently fell back to the lower global-default target instead of the percentage the user chose.
